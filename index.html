@@ -1132,6 +1132,7 @@
     showAuthOverlay(false);
     var nameDisplay = document.getElementById('login-name-display');
     if (nameDisplay) nameDisplay.textContent = currentLogin.person;
+    await loadSharedDataFromSupabase();
     if (typeof applyRoleVisibility === 'function') applyRoleVisibility();
     if (typeof updateViewerLabels === 'function') updateViewerLabels();
     if (typeof updateLoginRoleBadge === 'function') updateLoginRoleBadge();
@@ -1139,6 +1140,35 @@
     if (typeof renderProgress === 'function') renderProgress();
     if (typeof renderQueue === 'function') renderQueue();
     if (typeof renderTeamOverview === 'function') renderTeamOverview();
+  }
+
+  async function loadSharedDataFromSupabase() {
+    try {
+      var apRes = await sb.from('action_points').select('*');
+      if (!apRes.error && apRes.data) { actionPoints = apRes.data.map(rowToAp); localStorage.setItem(ACTIONPOINTS_KEY, JSON.stringify(actionPoints)); }
+
+      var exRes = await sb.from('exclusions').select('*');
+      if (!exRes.error && exRes.data) {
+        excluded = exRes.data.map(function (r) { return { Klantnummer: r.kn, Naam: r.naam, Reason: r.reason, Date: r.excluded_on }; });
+        localStorage.setItem(EXCLUDED_KEY, JSON.stringify(excluded));
+      }
+
+      var fbRes = await sb.from('feedback_log').select('*').order('date', { ascending: true });
+      if (!fbRes.error && fbRes.data) {
+        var grouped = {};
+        fbRes.data.forEach(function (r) {
+          if (!grouped[r.kn]) grouped[r.kn] = [];
+          grouped[r.kn].push({ type: r.type, note: r.note, date: r.date, loggedBy: r.logged_by });
+        });
+        feedbackStore = grouped;
+        localStorage.setItem(FEEDBACK_KEY, JSON.stringify(feedbackStore));
+      }
+
+      var rhRes = await sb.from('reassign_history').select('*');
+      if (!rhRes.error && rhRes.data) { reassignHistory = rhRes.data.map(rowToRh); localStorage.setItem(REASSIGN_HISTORY_KEY, JSON.stringify(reassignHistory)); }
+    } catch (e) {
+      console.error('loadSharedDataFromSupabase failed', e);
+    }
   }
 
   function wireAuthForm() {
@@ -1317,12 +1347,11 @@
   var confirmingKn = null;
 
   function excludeCustomer(kn, naam, reason) {
-    excluded.push({
-      Klantnummer: kn, Naam: naam,
-      Reason: (reason || '').trim() || '(no reason given)',
-      Date: new Date().toISOString().slice(0, 10)
-    });
+    var reasonText = (reason || '').trim() || '(no reason given)';
+    var dateText = new Date().toISOString().slice(0, 10);
+    excluded.push({ Klantnummer: kn, Naam: naam, Reason: reasonText, Date: dateText });
     saveExcluded();
+    if (sb) sb.from('exclusions').insert({ kn: kn, naam: naam, reason: reasonText, excluded_by: (typeof currentLogin !== 'undefined' ? currentLogin.person : null), excluded_on: dateText }).then(function (res) { if (res.error) console.error('excludeCustomer sync failed', res.error); });
     confirmingKn = null;
     renderQueue();
     renderExclusionList();
@@ -1330,6 +1359,7 @@
   function reincludeCustomer(kn) {
     excluded = excluded.filter(function (e) { return e.Klantnummer !== kn; });
     saveExcluded();
+    if (sb) sb.from('exclusions').delete().eq('kn', kn).then(function (res) { if (res.error) console.error('reincludeCustomer sync failed', res.error); });
     renderQueue();
     renderExclusionList();
   }
@@ -2159,13 +2189,15 @@
         var note = noteInput ? noteInput.value.trim() : '';
         var type = armingFeedbackType;
         if (!feedbackStore[kn]) feedbackStore[kn] = [];
+        var feedbackDate = new Date().toISOString().slice(0, 16).replace('T', ' ');
         feedbackStore[kn].push({
           type: type,
           note: note,
-          date: new Date().toISOString().slice(0, 16).replace('T', ' '),
+          date: feedbackDate,
           loggedBy: currentLogin.person
         });
         saveFeedbackStore();
+        if (sb) sb.from('feedback_log').insert({ kn: kn, type: type, note: note || null, date: feedbackDate, logged_by: currentLogin.person }).then(function (res) { if (res.error) console.error('feedback insert failed', res.error); });
         armingFeedbackType = null;
         var isOutreach = type === 'Called' || type === 'Emailed' || type === 'Visited';
         var tier = getTierForKn(kn);
@@ -2694,14 +2726,36 @@
     try { return JSON.parse(localStorage.getItem(ACTIONPOINTS_KEY)) || []; } catch (e) { return []; }
   }
   var actionPoints = loadActionPoints();
-  function saveActionPoints() { localStorage.setItem(ACTIONPOINTS_KEY, JSON.stringify(actionPoints)); }
+  function apToRow(ap) {
+    return { id: ap.id, kn: ap.kn, name: ap.name, action: ap.action, note: ap.note || null, owner: ap.owner,
+      status: ap.status, date: ap.date, due_date: ap.dueDate || null, done_date: ap.doneDate || null,
+      source: ap.source || null, list_key: ap.listKey || null, list_version: ap.listVersion || null, list_label: ap.listLabel || null };
+  }
+  function rowToAp(r) {
+    return { id: r.id, kn: r.kn, name: r.name, action: r.action, note: r.note, owner: r.owner,
+      status: r.status, date: r.date, dueDate: r.due_date, doneDate: r.done_date,
+      source: r.source, listKey: r.list_key, listVersion: r.list_version, listLabel: r.list_label };
+  }
+  function saveActionPoints() {
+    localStorage.setItem(ACTIONPOINTS_KEY, JSON.stringify(actionPoints));
+    if (sb && actionPoints.length) sb.from('action_points').upsert(actionPoints.map(apToRow)).then(function (res) { if (res.error) console.error('saveActionPoints sync failed', res.error); });
+  }
 
   var REASSIGN_HISTORY_KEY = 'ch_test_reassign_history_v1';
   function loadReassignHistory() {
     try { return JSON.parse(localStorage.getItem(REASSIGN_HISTORY_KEY)) || []; } catch (e) { return []; }
   }
   var reassignHistory = loadReassignHistory();
-  function saveReassignHistory() { localStorage.setItem(REASSIGN_HISTORY_KEY, JSON.stringify(reassignHistory)); }
+  function rhToRow(h) {
+    return { id: h.id, ap_id: h.apId, customer_name: h.customerName, from_owner: h.fromOwner, to_owner: h.toOwner, date: h.date, undone: !!h.undone };
+  }
+  function rowToRh(r) {
+    return { id: r.id, apId: r.ap_id, customerName: r.customer_name, fromOwner: r.from_owner, toOwner: r.to_owner, date: r.date, undone: r.undone };
+  }
+  function saveReassignHistory() {
+    localStorage.setItem(REASSIGN_HISTORY_KEY, JSON.stringify(reassignHistory));
+    if (sb && reassignHistory.length) sb.from('reassign_history').upsert(reassignHistory.map(rhToRow)).then(function (res) { if (res.error) console.error('saveReassignHistory sync failed', res.error); });
+  }
 
   var FLAGSHIP_KN = { 1619: 'happyfloor', 1278: 'aerts' };
 
@@ -2750,29 +2804,6 @@
   }
   var currentLogin = loadLogin();
   function saveLogin() { localStorage.setItem(LOGIN_KEY, JSON.stringify(currentLogin)); }
-
-  if (!actionPoints.some(function (ap) { return ap.source === 'manual'; })) {
-    var PLANNED_SEED = {
-      1619: [
-        { action: 'Call', dueDate: isoDatePlusDays(-6), note: 'Check-in call on the growth streak' },
-        { action: 'Email', dueDate: isoDatePlusDays(12), note: 'Follow-up on the Weedee Pro pitch' }
-      ],
-      1278: [
-        { action: 'Visit', dueDate: isoDatePlusDays(9), note: 'Visit to schedule' }
-      ]
-    };
-    Object.keys(PLANNED_SEED).forEach(function (knStr) {
-      var seedKn = parseInt(knStr);
-      PLANNED_SEED[knStr].forEach(function (s) {
-        actionPoints.push({
-          id: Math.random().toString(36).slice(2), kn: seedKn, name: nameForKn(seedKn), action: s.action,
-          note: s.note, owner: 'Dany Mestdag', status: 'open', date: new Date().toISOString().slice(0, 10),
-          dueDate: s.dueDate, source: 'manual', listKey: 'self-scheduled', listVersion: null, listLabel: 'Self-scheduled'
-        });
-      });
-    });
-    saveActionPoints();
-  }
 
   renderProfile('happyfloor');
 
