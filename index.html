@@ -1151,6 +1151,7 @@
     if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
     if (typeof populateRecipientDropdown === 'function') populateRecipientDropdown();
     if (typeof recompute === 'function') recompute();
+    if (typeof checkTlConnection === 'function') checkTlConnection();
   }
 
   async function loadSharedDataFromSupabase() {
@@ -4667,31 +4668,44 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   updateViewerLabels();
   updateLoginRoleBadge();
   var TL_CONNECTION_KEY = 'ch_test_tl_connection_v1';
-  function loadTlConnection() {
+  // Real connection state now lives in Supabase (dataset id='teamleader_auth'), written by
+  // /api/teamleader-oauth-callback once someone completes the real Teamleader login. This is
+  // no longer a per-browser simulated flag - checked fresh from the shared database.
+  var tlConnectionStatus = { checked: false, connected: false };
+
+  async function checkTlConnection() {
     try {
-      var v = JSON.parse(localStorage.getItem(TL_CONNECTION_KEY));
-      if (v && typeof v.connected === 'boolean') return v;
-    } catch (e) {}
-    return { connected: true, connectedBy: 'Dany Mestdag', connectedDate: new Date().toISOString().slice(0, 10) };
+      var res = await sb.from('dataset').select('payload,updated_at').eq('id', 'teamleader_auth').single();
+      tlConnectionStatus = {
+        checked: true,
+        connected: !!(res.data && res.data.payload && res.data.payload.refresh_token),
+        updatedAt: res.data ? res.data.updated_at : null
+      };
+    } catch (e) {
+      tlConnectionStatus = { checked: true, connected: false };
+    }
+    renderTlConnection();
   }
-  var tlConnection = loadTlConnection();
-  function saveTlConnection() { localStorage.setItem(TL_CONNECTION_KEY, JSON.stringify(tlConnection)); }
 
   function renderTlConnection() {
     var el = document.getElementById('tl-connection-status');
     if (!el) return;
-    if (tlConnection.connected) {
+    if (!tlConnectionStatus.checked) {
+      el.innerHTML = '<span style="font-size:12px;color:var(--text-muted);">Checking connection...</span>';
+      return;
+    }
+    if (tlConnectionStatus.connected) {
       el.innerHTML =
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
         '<span class="pill" style="background:var(--success-wash);color:var(--success);">Connected</span>' +
-        '<span style="font-size:12px;color:var(--text-secondary);">by ' + tlConnection.connectedBy + ' on ' + tlConnection.connectedDate + '</span>' +
+        '<span style="font-size:12px;color:var(--text-secondary);">last token refresh ' + (tlConnectionStatus.updatedAt ? tlConnectionStatus.updatedAt.slice(0, 16).replace('T', ' ') : String.fromCharCode(8212)) + '</span>' +
         '<button class="view-link" id="tl-disconnect-btn">Disconnect</button>' +
         '</div>';
     } else {
       el.innerHTML =
         '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">' +
         '<span class="pill" style="background:var(--surface-2);color:var(--text-muted);">Not connected</span>' +
-        '<button class="feedback-save-btn" id="tl-connect-btn">Connect to Teamleader</button>' +
+        '<a class="feedback-save-btn" id="tl-connect-btn" href="/api/teamleader-oauth-start" style="text-decoration:none;display:inline-block;">Connect to Teamleader</a>' +
         '</div>' +
         '<div id="tl-connect-status" style="margin-top:10px;"></div>';
     }
@@ -4701,37 +4715,19 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   if (tlConnectionEl) {
     tlConnectionEl.addEventListener('click', function (e) {
       if (e.target.closest('#tl-disconnect-btn')) {
-        tlConnection = { connected: false, connectedBy: null, connectedDate: null };
-        saveTlConnection();
-        renderTlConnection();
-        return;
-      }
-      var connectBtn = e.target.closest('#tl-connect-btn');
-      if (connectBtn) {
-        connectBtn.disabled = true;
-        var statusEl = document.getElementById('tl-connect-status');
-        var steps = ['Redirecting to Teamleader login...', 'Waiting for approval...', 'Exchanging tokens...'];
-        var i = 0;
-        function nextStep() {
-          if (i < steps.length) {
-            if (statusEl) statusEl.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">' + steps[i] + '</div>';
-            i++;
-            setTimeout(nextStep, 500);
-          } else {
-            tlConnection = { connected: true, connectedBy: currentLogin.person, connectedDate: new Date().toISOString().slice(0, 10) };
-            saveTlConnection();
-            renderTlConnection();
-          }
-        }
-        nextStep();
+        sb.from('dataset').delete().eq('id', 'teamleader_auth').then(function () { checkTlConnection(); });
       }
     });
+  }
+  if (location.search.indexOf('tl_connected=1') !== -1) {
+    history.replaceState(null, '', location.pathname);
   }
 
   renderLoginOptions();
   renderTeamUsers();
   renderAddUserForm();
   renderTlConnection();
+  checkTlConnection();
   renderTeamOverview();
 
   renderDataOverview();
