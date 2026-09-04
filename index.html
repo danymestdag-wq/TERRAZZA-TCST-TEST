@@ -1046,7 +1046,7 @@
         </div>
         <div id="upload-status" style="margin-top:10px;"></div>
         <div id="refresh-status" style="margin-top:10px;"></div>
-        <p class="thin-note" style="margin-top:10px;">Upload replaces the Excel data with a new file (admin-only, validated before it commits). Refresh re-syncs using whatever's already loaded - useful for pulling fresh Teamleader data alone. Both preview the real interaction here; actual file parsing and the Teamleader connection need the real backend (once hosted).</p>
+        <p class="thin-note" style="margin-top:10px;">Upload replaces the Excel data with a new file - parsed in your browser, merged with existing Teamleader matches/contacts/deals by Klantnummer, and saved live for everyone once you confirm. "Refresh Teamleader data only" (matching brand-new customers, updating deal/contact history) is not built yet - still shows a preview only.</p>
       </div>
 
       <div class="card card-pad">
@@ -1100,6 +1100,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
   var SUPABASE_URL = 'https://mrktemhnhwqszamaphlp.supabase.co';
@@ -1166,9 +1167,24 @@
 
       var rhRes = await sb.from('reassign_history').select('*');
       if (!rhRes.error && rhRes.data) { reassignHistory = rhRes.data.map(rowToRh); localStorage.setItem(REASSIGN_HISTORY_KEY, JSON.stringify(reassignHistory)); }
+
+      var dsRes = await sb.from('dataset').select('id,payload,updated_at');
+      if (!dsRes.error && dsRes.data) {
+        dsRes.data.forEach(function (row) {
+          if (row.id === 'directory' && row.payload) { DIRECTORY = row.payload; DIRECTORY_BY_KN = null; }
+          if (row.id === 'contacts' && row.payload) { TEAMLEADER_CONTACTS = row.payload; }
+          if (row.id === 'deals' && row.payload) { TEAMLEADER_DEALS = row.payload; }
+          if (row.id === 'notes' && row.payload) { TEAMLEADER_NOTES = row.payload; }
+        });
+      }
     } catch (e) {
       console.error('loadSharedDataFromSupabase failed', e);
     }
+  }
+
+  async function saveDatasetToSupabase(id, payload) {
+    var res = await sb.from('dataset').upsert({ id: id, payload: payload, updated_at: new Date().toISOString() });
+    if (res.error) { console.error('saveDatasetToSupabase failed for ' + id, res.error); throw res.error; }
   }
 
   function wireAuthForm() {
@@ -3366,6 +3382,135 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
     }
   }
 
+  var CAT_COLS = ['Cat_TMC', 'Cat_WDPRO', 'Cat_Geotex', 'Cat_Greeny', 'Cat_Diensten', 'Cat_Spares'];
+
+  function isBeneluxLand(land) {
+    var s = String(land || '');
+    return s.indexOf('Belgi') === 0 || s.indexOf('Nederland') === 0 || s.indexOf('Luxemburg') === 0;
+  }
+
+  function computeClassifyInputs(revenueByYear, years, currentFullYear) {
+    var activeYears = years.filter(function (y) { return y <= currentFullYear && revenueByYear[y] > 0; });
+    if (!activeYears.length) return { gap: 99, tenure: 0, recent2: 0, prior2: 0 };
+    var firstYear = Math.min.apply(null, activeYears);
+    var lastYear = Math.max.apply(null, activeYears);
+    var tenure = currentFullYear - firstYear + 1;
+    var gap = currentFullYear - lastYear;
+    var idx = years.indexOf(currentFullYear);
+    var recent2 = 0, prior2 = 0;
+    if (idx >= 3) {
+      recent2 = revenueByYear[years[idx]] + revenueByYear[years[idx - 1]];
+      prior2 = revenueByYear[years[idx - 2]] + revenueByYear[years[idx - 3]];
+    }
+    return { gap: gap, tenure: tenure, recent2: recent2, prior2: prior2 };
+  }
+
+  function parseExcelFile(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read the file.')); };
+      reader.onload = function (e) {
+        try {
+          var wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: false });
+          var sheetName = wb.SheetNames.indexOf('Klanten_cleaned') !== -1 ? 'Klanten_cleaned' : wb.SheetNames[0];
+          var sheet = wb.Sheets[sheetName];
+          var rows = XLSX.utils.sheet_to_json(sheet, { defval: null, raw: true });
+          resolve({ rows: rows, sheetName: sheetName });
+        } catch (err) { reject(err); }
+      };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  function toNum(v) {
+    if (v === null || v === undefined || v === '') return 0;
+    var n = parseFloat(v);
+    return isNaN(n) ? 0 : n;
+  }
+
+  function buildDirectoryFromRows(rows, oldDirectory) {
+    var headers = rows.length ? Object.keys(rows[0]) : [];
+    var yearCols = headers.filter(function (h) { return /^Omzet_\d{4}$/.test(h); });
+    if (!yearCols.length) throw new Error('No Omzet_YYYY columns found in the sheet — is this the right file?');
+    var YEARS = yearCols.map(function (c) { return parseInt(c.split('_')[1], 10); }).sort(function (a, b) { return a - b; });
+    var todayYear = new Date().getFullYear();
+    var CURRENT_FULL_YEAR = todayYear - 1;
+    if (YEARS.indexOf(CURRENT_FULL_YEAR) === -1) {
+      CURRENT_FULL_YEAR = YEARS.length >= 2 ? YEARS[YEARS.length - 2] : YEARS[YEARS.length - 1];
+    }
+
+    var oldByKn = {};
+    (oldDirectory.records || []).forEach(function (r) { oldByKn[r[0]] = r; });
+    var oldYearsLen = (oldDirectory.years || []).length;
+    var oldBase = 11 + oldYearsLen + 6;
+    var OLD_LANG = oldBase, OLD_POSTCODE = oldBase + 1, OLD_LAT = oldBase + 2, OLD_LON = oldBase + 3,
+        OLD_TLNAME = oldBase + 7, OLD_TLPHONE = oldBase + 8, OLD_TLDM = oldBase + 9;
+    var oldCountries = (oldDirectory.countries || []).slice();
+    var countryIdx = {};
+    oldCountries.forEach(function (c, i) { countryIdx[c] = i; });
+    function cidx(land) {
+      var l = land ? String(land) : '?';
+      if (!(l in countryIdx)) { countryIdx[l] = oldCountries.length; oldCountries.push(l); }
+      return countryIdx[l];
+    }
+
+    var records = [];
+    var newKns = [], seenKns = {};
+    rows.forEach(function (row) {
+      var knRaw = row['Klantnummer'];
+      if (knRaw === null || knRaw === undefined || !row['Naam']) return;
+      var kn = parseInt(knRaw, 10);
+      if (isNaN(kn)) return;
+      seenKns[kn] = true;
+
+      var revenueByYear = {};
+      YEARS.forEach(function (y) { revenueByYear[y] = toNum(row['Omzet_' + y]); });
+      var inputs = computeClassifyInputs(revenueByYear, YEARS, CURRENT_FULL_YEAR);
+      var cls = classifyFull(inputs, PRIORITY_DEFAULT_PARAMS);
+      var revenue = YEARS.map(function (y) { return Math.round(revenueByYear[y]); });
+      var categories = CAT_COLS.map(function (c) { return Math.round(toNum(row[c])); });
+      var lifetime = YEARS.filter(function (y) { return y <= CURRENT_FULL_YEAR; })
+        .reduce(function (sum, y) { return sum + Math.round(revenueByYear[y]); }, 0);
+
+      var old = oldByKn[kn];
+      var matched = old ? old[10] : 0;
+      var segment = old ? old[4] : '';
+      var lang = old ? old[OLD_LANG] : '';
+      var lat = old ? old[OLD_LAT] : '';
+      var lon = old ? old[OLD_LON] : '';
+      var tlName = old ? old[OLD_TLNAME] : '';
+      var tlPhone = old ? old[OLD_TLPHONE] : '';
+      var tlDM = old ? old[OLD_TLDM] : 0;
+      if (!old) newKns.push({ kn: kn, naam: row['Naam'] });
+
+      var postcode = (row['Postcode'] !== null && row['Postcode'] !== undefined && row['Postcode'] !== '') ? String(row['Postcode']).trim() : '';
+
+      records.push([
+        kn, row['Naam'], row['Plaats'] || '',
+        cidx(row['Land']), segment, isBeneluxLand(row['Land']) ? 0 : 1,
+        lifetime, TIER_CODES_JS[cls.tier], TREND_CODES_JS[cls.trend], ACTION_CODES_JS[cls.action], matched
+      ].concat(revenue, categories, [
+        lang, postcode, lat, lon,
+        row['Contactpersoon'] || '', row['Telefoon'] || '', row['E-Mailadres'] || '',
+        tlName, tlPhone, tlDM
+      ]));
+    });
+
+    var removedKns = [];
+    (oldDirectory.records || []).forEach(function (r) {
+      if (!seenKns[r[0]]) removedKns.push({ kn: r[0], naam: r[1] });
+    });
+
+    return {
+      directory: { years: YEARS, currentFullYear: CURRENT_FULL_YEAR, countries: oldCountries, records: records },
+      newKns: newKns, removedKns: removedKns
+    };
+  }
+
+  var TIER_CODES_JS = { 'High': 0, 'Medium': 1, 'Low': 2 };
+  var TREND_CODES_JS = { 'No history': 0, 'Long dormant': 1, 'New customer fading': 2, 'Recent drop-off': 3, 'Growing': 4, 'Softening but active': 5, 'Stable/active': 6 };
+  var ACTION_CODES_JS = { 'None': 0, 'Call': 1, 'Visit': 2, 'Email/offer': 3, 'Special offer': 4 };
+
   document.getElementById('excel-upload-input').addEventListener('change', function (e) {
     var file = e.target.files[0];
     if (!file) return;
@@ -3376,45 +3521,61 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
       status.innerHTML = '<div style="font-size:12px;color:var(--danger);">' + file.name + ' does not look like an Excel file — expected .xlsx or .xls.</div>';
       return;
     }
-    status.innerHTML =
-      '<div class="newaction-panel">' +
-      '<div style="font-size:12px;margin-bottom:8px;"><strong>' + file.name + '</strong> (' + sizeKb + ' KB) selected.</div>' +
-      '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Real file selected via your browser — actual column/row validation happens server-side once this is the real backend. This preview confirms the file itself is real and picked up correctly.</div>' +
-      '<div class="feedback-panel-actions"><button class="feedback-save-btn" id="confirm-upload-btn">Confirm upload</button>' +
-      '<button class="feedback-cancel-btn" id="cancel-upload-btn">Cancel</button></div></div>';
+    status.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">Reading ' + file.name + '...</div>';
 
-    document.getElementById('confirm-upload-btn').addEventListener('click', function () {
-      var steps = ['Validating ' + file.name + '...', 'Checking for VAT duplicates...', 'Matching against Teamleader...', 'Rebuilding customer directory...'];
-      var i = 0;
-      function next() {
-        if (i < steps.length) {
-          status.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">' + steps[i] + '</div>';
-          i++;
-          setTimeout(next, 500);
-        } else {
-          var records = DIRECTORY.records || [];
+    parseExcelFile(file).then(function (parsed) {
+      var built;
+      try {
+        built = buildDirectoryFromRows(parsed.rows, DIRECTORY);
+      } catch (err) {
+        status.innerHTML = '<div style="font-size:12px;color:var(--danger);">' + err.message + '</div>';
+        return;
+      }
+      var newCount = built.newKns.length, removedCount = built.removedKns.length;
+      var newList = built.newKns.slice(0, 8).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (newCount > 8 ? ', +' + (newCount - 8) + ' more' : '');
+      var removedList = built.removedKns.slice(0, 8).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (removedCount > 8 ? ', +' + (removedCount - 8) + ' more' : '');
+
+      status.innerHTML =
+        '<div class="newaction-panel">' +
+        '<div style="font-size:12px;margin-bottom:8px;"><strong>' + file.name + '</strong> (' + sizeKb + ' KB) — sheet "' + parsed.sheetName + '", ' + built.directory.records.length + ' customer rows.</div>' +
+        '<div style="font-size:12px;margin-bottom:6px;">' + newCount + ' new customer' + (newCount === 1 ? '' : 's') + (newCount ? ': ' + newList : '') + '</div>' +
+        (removedCount ? '<div style="font-size:12px;margin-bottom:6px;color:var(--warning);">⚠ ' + removedCount + ' customer' + (removedCount === 1 ? '' : 's') + ' in the current data are missing from this file: ' + removedList + '. Confirming will remove them — cancel and check the file first if that\'s not intended.</div>' : '') +
+        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Existing customers keep their Teamleader match, contacts and deal history. New customers show as not-yet-matched until you run "Sync with Teamleader".</div>' +
+        '<div class="feedback-panel-actions"><button class="feedback-save-btn" id="confirm-upload-btn">Confirm upload</button>' +
+        '<button class="feedback-cancel-btn" id="cancel-upload-btn">Cancel</button></div></div>';
+
+      document.getElementById('confirm-upload-btn').addEventListener('click', function () {
+        var btn = document.getElementById('confirm-upload-btn');
+        btn.disabled = true;
+        status.querySelector('.feedback-panel-actions').insertAdjacentHTML('afterend', '<div id="upload-progress" style="font-size:12px;color:var(--text-secondary);margin-top:8px;">Saving to the shared database...</div>');
+        saveDatasetToSupabase('directory', built.directory).then(function () {
+          DIRECTORY = built.directory;
+          DIRECTORY_BY_KN = null;
           var hist = loadRefreshHistory();
           hist.forEach(function (h) { if (h.status === 'pending') h.status = 'superseded'; });
           saveCurrentFilename(file.name);
           hist.push({
             date: new Date().toISOString().slice(0, 10),
-            total: records.length, matched: records.filter(function (r) { return r[10] === 1; }).length,
+            total: built.directory.records.length, matched: built.directory.records.filter(function (r) { return r[10] === 1; }).length,
             type: 'upload', filename: currentFilename, isNewFile: true, status: 'pending', version: currentFileMeta.version,
-            performedBy: 'Dany Mestdag (placeholder — no login yet)'
+            performedBy: currentLogin.person
           });
           savePendingRefresh(true);
           updateRefreshButtonState();
           localStorage.setItem(REFRESH_HISTORY_KEY, JSON.stringify(hist));
           renderRefreshHistory();
           renderDataOverview();
-          status.innerHTML = '<div style="font-size:12px;color:var(--success);">Upload processed and logged below. In the real app this would now reflect the actual data from the new file — here it reconfirms what is already loaded.</div>';
-        }
-      }
-      next();
-    });
-    document.getElementById('cancel-upload-btn').addEventListener('click', function () {
-      status.innerHTML = '';
-      document.getElementById('excel-upload-input').value = '';
+          status.innerHTML = '<div style="font-size:12px;color:var(--success);">Live: ' + built.directory.records.length + ' customers, ' + newCount + ' new. Everyone using the app now sees this data.</div>';
+        }).catch(function (err) {
+          status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Could not save to the database: ' + (err.message || err) + '</div>';
+        });
+      });
+      document.getElementById('cancel-upload-btn').addEventListener('click', function () {
+        status.innerHTML = '';
+        document.getElementById('excel-upload-input').value = '';
+      });
+    }).catch(function (err) {
+      status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Could not read ' + file.name + ': ' + err.message + '</div>';
     });
   });
 
@@ -3439,7 +3600,7 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
           date: new Date().toISOString().slice(0, 10),
           total: total, matched: matched,
           type: 'refresh', filename: currentFilename, isNewFile: false,
-          performedBy: 'Dany Mestdag (placeholder — no login yet)'
+          performedBy: currentLogin.person
         });
         for (var hi = hist.length - 1; hi >= 0; hi--) {
           if (hist[hi].status === 'pending') { hist[hi].status = 'refreshed'; break; }
