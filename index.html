@@ -1141,6 +1141,16 @@
     if (typeof renderProgress === 'function') renderProgress();
     if (typeof renderQueue === 'function') renderQueue();
     if (typeof renderTeamOverview === 'function') renderTeamOverview();
+    // DIRECTORY/TEAMLEADER_* may have just been overwritten from Supabase (a live-updated
+    // dataset, unlike the old embedded-once-forever snapshot) - anything rendered at page-init
+    // time, before this async load finished, was built from the stale embedded copy and needs
+    // a repaint now that the real data has landed. Same bug class as the DIRECTORY init-order
+    // issues elsewhere in this file, just via an async gap instead of declaration order.
+    if (typeof renderDataOverview === 'function') renderDataOverview();
+    if (typeof renderRefreshHistory === 'function') renderRefreshHistory();
+    if (typeof populateFilterDropdowns === 'function') populateFilterDropdowns();
+    if (typeof populateRecipientDropdown === 'function') populateRecipientDropdown();
+    if (typeof recompute === 'function') recompute();
   }
 
   async function loadSharedDataFromSupabase() {
