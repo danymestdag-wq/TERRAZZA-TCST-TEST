@@ -1040,13 +1040,13 @@
             <p style="font-size:11px;color:var(--text-muted);margin:4px 0 0;">Replaces the Excel data</p>
           </div>
           <div>
-            <button class="feedback-save-btn" id="refresh-data-btn">Refresh Teamleader data only</button>
+            <button class="feedback-save-btn" id="refresh-data-btn">Sync with Teamleader</button>
             <p style="font-size:11px;color:var(--text-muted);margin:4px 0 0;">No new Excel file</p>
           </div>
         </div>
         <div id="upload-status" style="margin-top:10px;"></div>
         <div id="refresh-status" style="margin-top:10px;"></div>
-        <p class="thin-note" style="margin-top:10px;">Upload replaces the Excel data with a new file - parsed in your browser, merged with existing Teamleader matches/contacts/deals by Klantnummer, and saved live for everyone once you confirm. "Refresh Teamleader data only" (matching brand-new customers, updating deal/contact history) is not built yet - still shows a preview only.</p>
+        <p class="thin-note" style="margin-top:10px;">Upload replaces the Excel data with a new file - parsed in your browser, merged with existing Teamleader matches/contacts/deals by Klantnummer, and saved live for everyone once you confirm. "Sync with Teamleader" searches Teamleader for every customer not yet matched (real API call, real match, saved for everyone) - see New customers for what it finds.</p>
       </div>
 
       <div class="card card-pad">
@@ -1107,6 +1107,8 @@
   var SUPABASE_ANON_KEY = 'sb_publishable_shEOBjNUmdmRzBJUjVsPWQ_cQY3IZwC';
   var sb = (typeof supabase !== 'undefined') ? supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
   var authedUser = null;
+  var TEAMLEADER_COMPANY_IDS = {};
+  var activatedCustomers = [];
 
   function showAuthOverlay(show) {
     var el = document.getElementById('auth-overlay');
@@ -1152,6 +1154,7 @@
     if (typeof populateRecipientDropdown === 'function') populateRecipientDropdown();
     if (typeof recompute === 'function') recompute();
     if (typeof checkTlConnection === 'function') checkTlConnection();
+    if (typeof renderNewCust === 'function') renderNewCust();
   }
 
   async function loadSharedDataFromSupabase() {
@@ -1186,6 +1189,8 @@
           if (row.id === 'contacts' && row.payload) { TEAMLEADER_CONTACTS = row.payload; }
           if (row.id === 'deals' && row.payload) { TEAMLEADER_DEALS = row.payload; }
           if (row.id === 'notes' && row.payload) { TEAMLEADER_NOTES = row.payload; }
+          if (row.id === 'teamleader_company_ids' && row.payload) { TEAMLEADER_COMPANY_IDS = row.payload; }
+          if (row.id === 'activated_customers' && row.payload) { activatedCustomers = row.payload; }
         });
       }
     } catch (e) {
@@ -1898,55 +1903,61 @@
 
   renderExclusionList();
 
-  var NEWCUST = [
-    { name: 'Patour Horticulture', city: 'Rétaud', country: 'FR', added: '2026-07-07' },
-    { name: 'Paysalis', city: 'Challans', country: 'FR', added: '2026-07-06' },
-    { name: 'Chantier vert', city: 'Sainte-Luce-sur-Loire', country: 'FR', added: '2026-07-06' },
-    { name: 'Barreau Paysage', city: 'Saint-Mars-de-Coutais', country: 'FR', added: '2026-07-06' },
-    { name: 'BV Erica Garden', city: 'Ninove', country: 'BE', added: '2026-06-30' },
-    { name: 'Rfcleaning', city: 'Brussel', country: 'BE', added: '2026-06-29' }
-  ];
   var newcustBody = document.getElementById('newcust-body');
-  var ACTIVATED_KEY = 'ch_test_activated_v1';
-  function loadActivated() {
-    try { return JSON.parse(localStorage.getItem(ACTIVATED_KEY)) || []; } catch (e) { return []; }
-  }
-  function saveActivated() { localStorage.setItem(ACTIVATED_KEY, JSON.stringify(activated)); }
-  var activated = loadActivated();
   var armingName = null;
 
+  function computeNewCustomers() {
+    if (typeof DIRECTORY === 'undefined' || !DIRECTORY.records) return [];
+    var excludedKns = {};
+    (excluded || []).forEach(function (e) { excludedKns[e.Klantnummer] = true; });
+    return (DIRECTORY.records || [])
+      .filter(function (r) { return r[10] === 0 && !excludedKns[r[0]]; })
+      .map(function (r) {
+        return {
+          kn: r[0], name: r[1], city: r[2], country: DIRECTORY.countries[r[3]] || '',
+          hasCompanyMatch: !!(TEAMLEADER_COMPANY_IDS && TEAMLEADER_COMPANY_IDS[r[0]])
+        };
+      });
+  }
+
+  function saveActivatedCustomers() { saveDatasetToSupabase('activated_customers', activatedCustomers); }
+
   function renderNewCust() {
+    var list = computeNewCustomers();
     newcustBody.innerHTML = '';
-    NEWCUST.forEach(function (c) {
-      var isActivated = activated.indexOf(c.name) !== -1;
+    list.forEach(function (c) {
+      var isActivated = activatedCustomers.indexOf(c.kn) !== -1;
       var tr = document.createElement('tr');
       var statusCell;
       if (isActivated) {
-        statusCell = '<span class="pill" style="background:var(--success-wash);color:var(--success);">Activated — welcome sent</span>';
-      } else if (armingName === c.name) {
-        statusCell = '<button class="excl-confirm-btn" data-name="' + c.name + '">Confirm — send welcome email?</button> ' +
+        statusCell = '<span class="pill" style="background:var(--success-wash);color:var(--success);">Activated</span>';
+      } else if (armingName === c.kn) {
+        statusCell = '<button class="excl-confirm-btn" data-kn="' + c.kn + '">Confirm — write Klantnummer &amp; open in Teamleader?</button> ' +
           '<button class="excl-cancel-btn" id="activate-cancel">Cancel</button>';
+      } else if (c.hasCompanyMatch) {
+        statusCell = '<button class="view-link" data-arm="' + c.kn + '">Activate</button>';
       } else {
-        statusCell = '<button class="view-link" data-arm="' + c.name + '">Activate</button>';
+        statusCell = '<span class="pill" style="background:var(--surface-2);color:var(--text-muted);">Not yet found in Teamleader</span>';
       }
       tr.innerHTML =
-        '<td class="cust-name" data-toggle-newcust="' + c.name + '" style="cursor:pointer;" title="Click for details">' + c.name + '</td>' +
+        '<td class="cust-name" data-toggle-newcust="' + c.kn + '" style="cursor:pointer;" title="Click for details">' + c.name + '</td>' +
         '<td class="action-tag">' + c.city + ', ' + c.country + '</td>' +
-        '<td class="action-tag">' + c.added + '</td>' +
+        '<td class="action-tag">Klantnummer ' + c.kn + '</td>' +
         '<td>' + statusCell + '</td>';
       newcustBody.appendChild(tr);
-      if (expandedNewCust === c.name) {
+      if (expandedNewCust === c.kn) {
         var detailTr = document.createElement('tr');
         detailTr.innerHTML = '<td colspan="4" style="background:var(--surface-2);font-size:12px;color:var(--text-secondary);padding:10px 14px;">' +
-          'No customer profile yet — ' + c.name + ' was only just added to Teamleader and has no purchase history in the Excel turnover file yet. ' +
-          'A full profile (revenue, categories, tier) will appear automatically once they place an order and the next monthly Excel refresh picks it up.' +
+          (c.hasCompanyMatch
+            ? 'Found in Teamleader — click Activate to write this Klantnummer into Teamleader and open the company there. Sending the welcome email is still a manual step, done by hand from Teamleader once you\'re on that page.'
+            : c.name + ' is in the Excel turnover file but not yet found in Teamleader. Click "Sync with Teamleader" on the Data &amp; Refresh page to search for it again.') +
           '</td>';
         newcustBody.appendChild(detailTr);
       }
     });
-    document.getElementById('stat-newcust-total').textContent = NEWCUST.length;
-    document.getElementById('stat-newcust-activated').textContent = activated.length;
-    document.getElementById('stat-newcust-pending').textContent = NEWCUST.length - activated.length;
+    document.getElementById('stat-newcust-total').textContent = list.length;
+    document.getElementById('stat-newcust-activated').textContent = activatedCustomers.length;
+    document.getElementById('stat-newcust-pending').textContent = list.filter(function (c) { return activatedCustomers.indexOf(c.kn) === -1; }).length;
   }
 
   var expandedNewCust = null;
@@ -1954,21 +1965,37 @@
   newcustBody.addEventListener('click', function (e) {
     var toggleCell = e.target.closest('[data-toggle-newcust]');
     if (toggleCell) {
-      var name = toggleCell.dataset.toggleNewcust;
-      expandedNewCust = expandedNewCust === name ? null : name;
+      var kn = parseInt(toggleCell.dataset.toggleNewcust);
+      expandedNewCust = expandedNewCust === kn ? null : kn;
       renderNewCust();
       return;
     }
     var armBtn = e.target.closest('[data-arm]');
-    if (armBtn) { armingName = armBtn.dataset.arm; renderNewCust(); return; }
+    if (armBtn) { armingName = parseInt(armBtn.dataset.arm); renderNewCust(); return; }
     var cancelBtn = e.target.closest('#activate-cancel');
     if (cancelBtn) { armingName = null; renderNewCust(); return; }
-    var confirmBtn = e.target.closest('.excl-confirm-btn[data-name]');
+    var confirmBtn = e.target.closest('.excl-confirm-btn[data-kn]');
     if (confirmBtn) {
-      activated.push(confirmBtn.dataset.name);
-      saveActivated();
-      armingName = null;
-      renderNewCust();
+      var confirmKn = parseInt(confirmBtn.dataset.kn);
+      confirmBtn.disabled = true;
+      confirmBtn.textContent = 'Writing to Teamleader...';
+      fetch('/api/teamleader-activate?kn=' + confirmKn).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
+        if (!res.ok) {
+          alert('Could not activate: ' + (res.body.error || 'unknown error'));
+          armingName = null;
+          renderNewCust();
+          return;
+        }
+        activatedCustomers.push(confirmKn);
+        saveActivatedCustomers();
+        armingName = null;
+        renderNewCust();
+        if (res.body.companyUrl) window.open(res.body.companyUrl, '_blank');
+      }).catch(function (err) {
+        alert('Could not activate: ' + err.message);
+        armingName = null;
+        renderNewCust();
+      });
     }
   });
 
@@ -1981,7 +2008,7 @@
   function renderNewCustVerifiedNote() {
     var note = document.getElementById("newcust-verified-note");
     if (!note) return;
-    note.textContent = "This list is checked directly against Teamleader, sorted by date added. Last verified: " + loadNewCustVerified() + ". Use Refresh Teamleader data (Data & Refresh) to re-check.";
+    note.textContent = "New customers here come from the Excel file, cross-checked against Teamleader. Last verified: " + loadNewCustVerified() + ". Use \"Sync with Teamleader\" (Data & Refresh) to re-check.";
   }
 
   function renderAutomationBanner() {
@@ -3317,12 +3344,13 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   function updateRefreshButtonState() {
     var btn = document.getElementById('refresh-data-btn');
     if (!btn) return;
-    btn.disabled = !pendingRefresh;
-    btn.style.opacity = pendingRefresh ? '1' : '.5';
-    btn.style.cursor = pendingRefresh ? 'pointer' : 'not-allowed';
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.style.cursor = 'pointer';
     var caption = btn.parentElement.querySelector('p');
     if (caption) {
-      caption.textContent = pendingRefresh ? 'New file uploaded, ready to sync with Teamleader' : 'Nothing new to refresh — upload a file first';
+      var unmatchedCount = (DIRECTORY.records || []).filter(function (r) { return r[10] === 0; }).length;
+      caption.textContent = unmatchedCount ? ('Checks ' + unmatchedCount + ' unmatched customer' + (unmatchedCount === 1 ? '' : 's') + ' against Teamleader') : 'All customers already matched — nothing to check';
     }
   }
 
@@ -3591,42 +3619,41 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   });
 
   document.getElementById('refresh-data-btn').addEventListener('click', function () {
-    if (!pendingRefresh) return;
     var btn = document.getElementById('refresh-data-btn');
     var status = document.getElementById('refresh-status');
     btn.disabled = true;
-    var steps = ['Checking Excel file for changes...', 'Checking Teamleader for updates...', 'Reconciling with existing lists...'];
-    var i = 0;
-    function nextStep() {
-      if (i < steps.length) {
-        status.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">' + steps[i] + '</div>';
-        i++;
-        setTimeout(nextStep, 500);
-      } else {
-        var records = DIRECTORY.records || [];
-        var hist = loadRefreshHistory();
-        var total = records.length;
-        var matched = records.filter(function (r) { return r[10] === 1; }).length;
-        hist.push({
-          date: new Date().toISOString().slice(0, 10),
-          total: total, matched: matched,
-          type: 'refresh', filename: currentFilename, isNewFile: false,
-          performedBy: currentLogin.person
-        });
-        for (var hi = hist.length - 1; hi >= 0; hi--) {
-          if (hist[hi].status === 'pending') { hist[hi].status = 'refreshed'; break; }
-        }
-        localStorage.setItem(REFRESH_HISTORY_KEY, JSON.stringify(hist));
-        renderRefreshHistory();
-        renderDataOverview();
-        localStorage.setItem(NEWCUST_VERIFIED_KEY, new Date().toISOString().slice(0, 16).replace("T", " "));
-        renderNewCustVerifiedNote();
-        savePendingRefresh(false);
-        updateRefreshButtonState();
-        status.innerHTML = '<div style="font-size:12px;color:var(--success);">Refresh complete — the uploaded file is now synced with Teamleader. Upload a new file to refresh again.</div>';
+    status.innerHTML = '<div style="font-size:12px;color:var(--text-secondary);">Searching Teamleader for unmatched customers...</div>';
+    fetch('/api/teamleader-sync').then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
+      btn.disabled = false;
+      updateRefreshButtonState();
+      if (!res.ok) {
+        status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Sync failed: ' + (res.body.error || 'unknown error') + '</div>';
+        return;
       }
-    }
-    nextStep();
+      var r = res.body;
+      if (r.directory) { DIRECTORY = r.directory; DIRECTORY_BY_KN = null; }
+      var records = DIRECTORY.records || [];
+      var hist = loadRefreshHistory();
+      var total = records.length;
+      var matched = records.filter(function (rec) { return rec[10] === 1; }).length;
+      hist.push({
+        date: new Date().toISOString().slice(0, 10),
+        total: total, matched: matched,
+        type: 'refresh', filename: currentFilename, isNewFile: false,
+        performedBy: currentLogin.person
+      });
+      localStorage.setItem(REFRESH_HISTORY_KEY, JSON.stringify(hist));
+      renderRefreshHistory();
+      renderDataOverview();
+      localStorage.setItem(NEWCUST_VERIFIED_KEY, new Date().toISOString().slice(0, 16).replace("T", " "));
+      renderNewCustVerifiedNote();
+      if (typeof renderNewCust === 'function') renderNewCust();
+      status.innerHTML = '<div style="font-size:12px;color:var(--success);">Checked ' + r.checked + ' - ' + r.matchedCount + ' newly matched, ' + r.stillUnmatchedCount + ' still not found in Teamleader. See New customers for details.</div>';
+    }).catch(function (err) {
+      btn.disabled = false;
+      updateRefreshButtonState();
+      status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Sync failed: ' + err.message + '</div>';
+    });
   });
 
   var currentViewer = currentLogin.person;
