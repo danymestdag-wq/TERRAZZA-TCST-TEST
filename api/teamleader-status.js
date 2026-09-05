@@ -14,3 +14,4 @@ module.exports = async function handler(req, res) {
     res.status(500).json({ connected: false, error: err.message });
   }
 };
+// deploy-trigger-test
