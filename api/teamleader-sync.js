@@ -21,8 +21,9 @@ module.exports = async function handler(req, res) {
     const companyIds = (await getDataset('teamleader_company_ids')) || {};
 
     const records = directory.records;
-    const unmatched = records.filter(function (r) { return r[10] === 0; });
-    const toCheck = unmatched.slice(0, BATCH_LIMIT);
+    const onlyKn = req.query.kn ? parseInt(req.query.kn) : null;
+    const unmatched = records.filter(function (r) { return r[10] === 0 && (onlyKn === null || r[0] === onlyKn); });
+    const toCheck = onlyKn !== null ? unmatched : unmatched.slice(0, BATCH_LIMIT);
 
     let matchedCount = 0;
     const details = [];
