@@ -55,7 +55,7 @@ async function findCompanyMatch(accessToken, name) {
 }
 
 module.exports = async function handler(req, res) {
-  try {
+  try {// Real "Sync with Teamleader" endpoint. For every customer not yet matched (matched=0 in the
     const accessToken = await getAccessToken();
     const directory = await getDirectory();
     const companyIds = (await getDataset('teamleader_company_ids')) || {};
