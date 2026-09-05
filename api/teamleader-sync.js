@@ -18,7 +18,11 @@
 const { getAccessToken, tlPost, getDirectory, saveDirectory, getDataset, saveDataset } = require('./_teamleader');
 
 const KLANTTYPE_FIELD_ID = '094c7d72-6c35-020b-b453-766c4374b923';
-const BATCH_LIMIT = 20;
+// Each customer can need up to 3 sequential search calls (full name, then shorter fallbacks)
+// plus one companies.info call when matched - a batch of 20 was measured taking ~15-19s in
+// practice, right at the edge of (and sometimes past) Vercel's function timeout. 10 keeps
+// each click comfortably fast and reliable; just means more clicks to clear a big backlog.
+const BATCH_LIMIT = 10;
 
 function normalizeName(s) {
   return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
@@ -55,7 +59,7 @@ async function findCompanyMatch(accessToken, name) {
 }
 
 module.exports = async function handler(req, res) {
-  try {// Real "Sync with Teamleader" endpoint. For every customer not yet matched (matched=0 in the
+  try {
     const accessToken = await getAccessToken();
     const directory = await getDirectory();
     const companyIds = (await getDataset('teamleader_company_ids')) || {};
