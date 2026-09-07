@@ -3455,6 +3455,13 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   }
 
   function renderDataOverview() {
+    // Also refreshes the "Sync with Teamleader" button's unmatched-count caption every time this
+    // runs - the two used to be updated by separate call sites that could drift out of sync (the
+    // tiles here would show today's real numbers while the button caption below them still showed
+    // whatever was true hours or days earlier), which looked like a genuine inconsistency but was
+    // really just one of the two forgetting to refresh. Tying them together here means there is
+    // only one place that ever needs to be called.
+    if (typeof updateRefreshButtonState === 'function') updateRefreshButtonState();
     var records = DIRECTORY.records || [];
     var total = records.length;
     var matched = records.filter(function (r) { return r[10] === 1; }).length;
