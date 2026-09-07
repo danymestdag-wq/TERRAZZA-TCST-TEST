@@ -539,108 +539,11 @@
     <section id="view-help" class="view">
       <h1>Help &amp; workflow guide</h1>
       <p class="subtitle">Why this tool exists, where the data comes from, and how to use it every day.</p>
-
-      <div class="card card-pad">
-        <h2 style="margin-bottom:10px;">Why this exists</h2>
-        <p style="font-size:14px;color:var(--text-primary);line-height:1.5;margin-bottom:8px;"><strong>Every year, good customers quietly go quiet.</strong> They're still buying — or they've stopped — and nobody notices until it's too late to do anything about it. A spreadsheet doesn't call anyone. Nothing reminds you who needs a visit this week.</p>
-        <p style="font-size:14px;color:var(--text-primary);line-height:1.5;">TCST exists to fix exactly that: one shared view of every customer, built from real data, kept alive by what you do every day.</p>
+      <div style="margin-bottom:18px;">
+        <button id="help-lang-en" class="view-link" style="margin-right:6px;">English</button>
+        <button id="help-lang-nl" class="view-link">Nederlands</button>
       </div>
-
-      <div class="card card-pad" style="margin-top:16px;">
-        <h2 style="margin-bottom:4px;">Where the data comes from</h2>
-        <p class="subtitle" style="margin-bottom:14px;">Two real sources become one customer view.</p>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
-          <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Teamleader CRM</div>
-            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Deals, customer type, contact details, and who's responsible for the account.</div>
-          </div>
-          <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Monthly Excel file</div>
-            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Revenue by year and product category, updated by your manager every month.</div>
-          </div>
-        </div>
-        <div style="background:var(--danger-wash);border-radius:10px;padding:14px;">
-          <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">You're not just using this data — you're building it.</div>
-          <div style="font-size:12.5px;color:var(--text-primary);">Every call, email, visit, and note you log becomes part of the customer's real history.</div>
-        </div>
-      </div>
-
-      <div class="card card-pad" style="margin-top:16px;">
-        <h2 style="margin-bottom:4px;">What the app does with it</h2>
-        <p class="subtitle" style="margin-bottom:14px;">Two separate signals decide who needs attention.</p>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">Revenue tier</div>
-            <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">High / Medium / Low, based on how much a customer buys and how recently. Computed live from real turnover data.</div>
-          </div>
-          <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
-            <div style="font-size:14px;font-weight:700;color:var(--danger);margin-bottom:6px;">Relationship risk</div>
-            <div style="font-size:12.5px;color:var(--text-primary);line-height:1.4;">A customer can still be buying — but if nobody's actually talked to them in a while, this flags it separately. Revenue alone would miss that.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card card-pad" style="margin-top:16px;">
-        <h2 style="margin-bottom:4px;">Your daily workflow</h2>
-        <p class="subtitle" style="margin-bottom:14px;">The loop you follow every day.</p>
-        <div style="display:flex;gap:12px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">1 &middot; Open My Queue</div>
-            <div style="font-size:12px;color:var(--text-secondary);">See what's due, overdue, or upcoming - or browse Priority List to find more.</div>
-          </div>
-          <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">2 &middot; Open the profile</div>
-            <div style="font-size:12px;color:var(--text-secondary);">See their full history and what's already planned next.</div>
-          </div>
-          <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">3 &middot; Log what happened</div>
-            <div style="font-size:12px;color:var(--text-secondary);">Called, Emailed, Visited, or just a Note - every real contact counts.</div>
-          </div>
-          <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">4 &middot; Plan the next step</div>
-            <div style="font-size:12px;color:var(--text-secondary);">Schedule a follow-up yourself - or the app will ask you to before you close out.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card card-pad" style="margin-top:16px;">
-        <h2 style="margin-bottom:4px;">What the colors mean</h2>
-        <p class="subtitle" style="margin-bottom:14px;">Read your queue at a glance.</p>
-        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
-          <span class="pill" style="background:var(--danger-wash);color:var(--danger);font-weight:700;">Overdue 5d — act now</span>
-          <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-weight:700;">Due today</span>
-          <span class="pill" style="background:var(--surface-2);color:var(--text-secondary);">Due 07/23 — no rush yet</span>
-        </div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;">
-          <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">"Self-scheduled"</div>
-            <div style="font-size:12px;color:var(--text-secondary);">You planned this yourself, after a call or visit.</div>
-          </div>
-          <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
-            <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">"App-flagged"</div>
-            <div style="font-size:12px;color:var(--text-primary);">The app noticed this customer needs attention and added it for you.</div>
-          </div>
-        </div>
-      </div>
-
-      <div class="card card-pad" style="margin-top:16px;">
-        <h2 style="margin-bottom:4px;">Adding a planned action to your Google Calendar</h2>
-        <p class="subtitle" style="margin-bottom:10px;">Any planned action with a due date - in My Queue or on a customer's profile - has a small &#128197; <strong>Add to calendar</strong> link next to it.</p>
-        <p style="font-size:13px;color:var(--text-primary);line-height:1.5;">Clicking it opens Google Calendar in a new tab with the event already filled in - customer, action, and a link straight back to this exact customer in TCST, so opening the calendar event on the day itself brings you right back here. No login or setup needed, and nothing is added automatically - you choose which ones are worth putting on your calendar.</p>
-        <p class="thin-note" style="margin-top:10px;">This is the quick, one-click version. A fully automatic sync (every new action added to your calendar by itself) is planned for later, once TCST has a permanent home online.</p>
-      </div>
-
-      <div class="card card-pad" style="margin-top:16px;margin-bottom:24px;">
-        <h2 style="margin-bottom:10px;">What's expected of you</h2>
-        <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:2;">
-          <li><strong>Log every real contact</strong> - calls, emails, visits, notes. This is now the real record.</li>
-          <li><strong>Always plan the next step</strong> - schedule a follow-up, or tell the app none is needed.</li>
-          <li><strong>Check My Queue every day</strong> - that's your home page, it shows exactly what's due.</li>
-          <li><strong>Use Priority List to find more</strong> - when your queue is clear, go looking for who needs a call.</li>
-          <li><strong>Track your own progress</strong> - My Progress shows your streak and what you've completed.</li>
-        </ul>
-        <p style="margin-top:14px;font-style:italic;color:var(--text-secondary);font-size:13px;">Real customers. Real conversations. Nothing forgotten.</p>
-      </div>
+      <div id="help-content"></div>
     </section>
 
     <section id="view-teamoverview" class="view">
@@ -3018,6 +2921,319 @@
   }
   var currentLogin = loadLogin();
   function saveLogin() { localStorage.setItem(LOGIN_KEY, JSON.stringify(currentLogin)); }
+
+  // Help page content, in full, in both languages - a static HTML string per language rather than
+  // a translation-key system, since this is a one-off help document, not UI chrome that needs
+  // per-string lookups everywhere. Swapped wholesale into #help-content on toggle; the chosen
+  // language is remembered in localStorage so it doesn't reset every time you leave the page.
+  var HELP_CONTENT_EN = `
+    <div class="card card-pad">
+      <h2 style="margin-bottom:10px;">Why this exists</h2>
+      <p style="font-size:14px;color:var(--text-primary);line-height:1.5;margin-bottom:8px;"><strong>Every year, good customers quietly go quiet.</strong> They're still buying — or they've stopped — and nobody notices until it's too late to do anything about it. A spreadsheet doesn't call anyone. Nothing reminds you who needs a visit this week.</p>
+      <p style="font-size:14px;color:var(--text-primary);line-height:1.5;">TCST exists to fix exactly that: one shared view of every customer, built from real data, kept alive by what you do every day.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Where the data comes from</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Two real sources become one customer view.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Teamleader CRM</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Deals, customer type, contact details, and who's responsible for the account — fetched live from Teamleader the moment you open a customer's profile, not a stale copy from months ago.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Monthly Excel file</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Revenue by year and product category, updated by your manager every month.</div>
+        </div>
+      </div>
+      <div style="background:var(--danger-wash);border-radius:10px;padding:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">You're not just using this data — you're building it.</div>
+        <div style="font-size:12.5px;color:var(--text-primary);">Every call, email, visit, and note you log becomes part of the customer's real history.</div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">What the app does with it</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Two separate signals decide who needs attention.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">Revenue tier</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">High / Medium / Low, based on how much a customer buys and how recently. Computed live from real turnover data.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--danger);margin-bottom:6px;">Relationship risk</div>
+          <div style="font-size:12.5px;color:var(--text-primary);line-height:1.4;">A customer can still be buying — but if nobody's actually talked to them in a while, this flags it separately. Revenue alone would miss that.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Your daily workflow</h2>
+      <p class="subtitle" style="margin-bottom:14px;">The loop you follow every day.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">1 &middot; Open My Queue</div>
+          <div style="font-size:12px;color:var(--text-secondary);">See what's due, overdue, or upcoming - or browse Priority List to find more.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">2 &middot; Open the profile</div>
+          <div style="font-size:12px;color:var(--text-secondary);">See their full history and what's already planned next.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">3 &middot; Log what happened</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Called, Emailed, Visited, or just a Note - every real contact counts.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">4 &middot; Plan the next step</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Schedule a follow-up yourself - or the app will ask you to before you close out.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">What the colors mean</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Read your queue at a glance.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        <span class="pill" style="background:var(--danger-wash);color:var(--danger);font-weight:700;">Overdue 5d — act now</span>
+        <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-weight:700;">Due today</span>
+        <span class="pill" style="background:var(--surface-2);color:var(--text-secondary);">Due 07/23 — no rush yet</span>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">"Self-scheduled"</div>
+          <div style="font-size:12px;color:var(--text-secondary);">You planned this yourself, after a call or visit.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">"App-flagged"</div>
+          <div style="font-size:12px;color:var(--text-primary);">The app noticed this customer needs attention and added it for you.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Adding a planned action to your Google Calendar</h2>
+      <p class="subtitle" style="margin-bottom:10px;">Any planned action with a due date - in My Queue or on a customer's profile - has a small &#128197; <strong>Add to calendar</strong> link next to it.</p>
+      <p style="font-size:13px;color:var(--text-primary);line-height:1.5;">Clicking it opens Google Calendar in a new tab with the event already filled in - customer, action, and a link straight back to this exact customer in TCST, so opening the calendar event on the day itself brings you right back here. No login or setup needed, and nothing is added automatically - you choose which ones are worth putting on your calendar.</p>
+      <p class="thin-note" style="margin-top:10px;">This is the quick, one-click version. A fully automatic sync (every new action added to your calendar by itself) is planned for later, once TCST has a permanent home online.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:10px;">What's expected of you</h2>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:2;">
+        <li><strong>Log every real contact</strong> - calls, emails, visits, notes. This is now the real record.</li>
+        <li><strong>Always plan the next step</strong> - schedule a follow-up, or tell the app none is needed.</li>
+        <li><strong>Check My Queue every day</strong> - that's your home page, it shows exactly what's due.</li>
+        <li><strong>Use Priority List to find more</strong> - when your queue is clear, go looking for who needs a call.</li>
+        <li><strong>Track your own progress</strong> - My Progress shows your streak and what you've completed.</li>
+      </ul>
+      <p style="margin-top:14px;font-style:italic;color:var(--text-secondary);font-size:13px;">Real customers. Real conversations. Nothing forgotten.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:24px;">
+      <h2 style="margin-bottom:4px;">New customers</h2>
+      <p class="subtitle" style="margin-bottom:12px;">Every customer that's new in the monthly Excel file lands here automatically, and stays until you've dealt with it - being matched to Teamleader along the way doesn't remove it from the list.</p>
+      <ul style="margin:0 0 12px;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:1.9;">
+        <li><strong>Activate</strong> - shown once the customer is matched to a real Teamleader company. Writes the Klantnummer into Teamleader (fixing the link for good) and opens the company there so you can send the welcome email by hand.</li>
+        <li><strong>Search manually</strong> - shown when automatic matching couldn't find the company with confidence. Type a name, email, or anything else and pick the right company from the results yourself. A warning appears if a candidate already has a different Klantnummer, so you don't link the wrong one.</li>
+        <li><strong>Close</strong> - for a customer you know will never need a Teamleader link (a genuine one-off). Give a short reason; it can always be reopened later from the same list.</li>
+      </ul>
+      <p style="font-size:12.5px;color:var(--text-secondary);">The list is sorted by Klantnummer, lowest first - oldest customer relationships at the top, newest at the bottom.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Data &amp; Refresh <span class="pill" style="background:var(--surface-2);color:var(--text-muted);font-size:10px;">Manager only</span></h2>
+      <p class="subtitle" style="margin-bottom:12px;">Where a new Excel file comes in, and where matching to Teamleader happens.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">Upload new Excel file</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Before anything is saved live, the file is checked: all the right columns are present, Klantnummers are numeric and unique, revenue and category figures are numbers, no customer has silently disappeared from the file, and no closed year's revenue has changed from what's already live (only the current year is allowed to move). Any problem is listed clearly and blocks the upload until it's fixed in the source file - none of these should ever legitimately happen from a correct export.</div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">Sync with Teamleader</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Searches Teamleader for every customer not yet matched, using name, VAT number, email, a dedicated (non-generic) email domain, phone, and contact person as signals - strongest evidence first. Runs in a self-continuing sweep with a Stop button; safe to stop and resume anytime.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">List Builder <span class="pill" style="background:var(--surface-2);color:var(--text-muted);font-size:10px;">Manager only</span></h2>
+      <p class="subtitle" style="margin-bottom:12px;">Build a scoped priority list (by territory, country, language, segment, category) and hand it to a specific salesperson.</p>
+      <p style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">A draft can be edited freely and deleted with no consequence. Once <strong>Distributed</strong>, its customers become real action points in that person's My Queue - deleting a distributed list asks for confirmation first and removes those action points everywhere, including for whoever it was assigned to.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;margin-bottom:24px;">
+      <h2 style="margin-bottom:4px;">Other manager tools</h2>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:2;">
+        <li><strong>Team overview / Team Analytics</strong> - workload, coverage gaps, relationship risk, and per-person progress across the whole team.</li>
+        <li><strong>Team &amp; Access</strong> - who has a login, their role, and Teamleader connection status.</li>
+        <li><strong>Exceptions</strong> - customers excluded from Priority List, with the reason and who excluded them; reversible any time.</li>
+        <li><strong>My Super Tool</strong> - the same customer data with every filter available at once, for one-off digging that doesn't fit the daily workflow.</li>
+      </ul>
+    </div>
+  `;
+
+  var HELP_CONTENT_NL = `
+    <div class="card card-pad">
+      <h2 style="margin-bottom:10px;">Waarom dit bestaat</h2>
+      <p style="font-size:14px;color:var(--text-primary);line-height:1.5;margin-bottom:8px;"><strong>Elk jaar worden goede klanten stilletjes stil.</strong> Ze kopen nog — of ze zijn gestopt — en niemand merkt het op tot het te laat is om er nog iets aan te doen. Een spreadsheet belt niemand op. Niets herinnert je eraan wie deze week een bezoek nodig heeft.</p>
+      <p style="font-size:14px;color:var(--text-primary);line-height:1.5;">TCST bestaat om precies dat op te lossen: één gedeeld overzicht van elke klant, opgebouwd uit echte data, levend gehouden door wat je elke dag doet.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Waar de data vandaan komt</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Twee echte bronnen worden één klantbeeld.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Teamleader CRM</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Deals, klanttype, contactgegevens, en wie verantwoordelijk is voor de klant — live opgehaald bij Teamleader op het moment dat je het klantprofiel opent, geen verouderde kopie van maanden geleden.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--accent);margin-bottom:6px;">Maandelijks Excel-bestand</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Omzet per jaar en productcategorie, elke maand bijgewerkt door je manager.</div>
+        </div>
+      </div>
+      <div style="background:var(--danger-wash);border-radius:10px;padding:14px;">
+        <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">Je gebruikt deze data niet alleen — je bouwt ze mee op.</div>
+        <div style="font-size:12.5px;color:var(--text-primary);">Elke oproep, e-mail, bezoek en notitie die je registreert, wordt deel van de echte geschiedenis van de klant.</div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Wat de app ermee doet</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Twee aparte signalen bepalen wie aandacht nodig heeft.</p>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--text-primary);margin-bottom:6px;">Omzet-tier</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.4;">Hoog / Gemiddeld / Laag, gebaseerd op hoeveel een klant koopt en hoe recent. Live berekend op basis van echte omzetdata.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
+          <div style="font-size:14px;font-weight:700;color:var(--danger);margin-bottom:6px;">Relatierisico</div>
+          <div style="font-size:12.5px;color:var(--text-primary);line-height:1.4;">Een klant kan nog steeds kopen — maar als er al een tijd niemand echt met hem gesproken heeft, wordt dat apart gemarkeerd. Omzet alleen zou dat niet opmerken.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Je dagelijkse workflow</h2>
+      <p class="subtitle" style="margin-bottom:14px;">De cyclus die je elke dag doorloopt.</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">1 &middot; Open My Queue</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Bekijk wat er nu, te laat, of binnenkort moet gebeuren - of blader door de Prioriteitenlijst voor meer.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">2 &middot; Open het profiel</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Bekijk de volledige geschiedenis en wat er al gepland staat.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">3 &middot; Registreer wat er gebeurd is</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Gebeld, gemaild, bezocht, of gewoon een notitie - elk echt contact telt mee.</div>
+        </div>
+        <div style="flex:1;min-width:200px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--accent);margin-bottom:4px;">4 &middot; Plan de volgende stap</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Plan zelf een opvolging - of de app vraagt het je voor je afsluit.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Wat de kleuren betekenen</h2>
+      <p class="subtitle" style="margin-bottom:14px;">Lees je wachtrij in één oogopslag.</p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+        <span class="pill" style="background:var(--danger-wash);color:var(--danger);font-weight:700;">5d te laat — actie nu</span>
+        <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-weight:700;">Vandaag te doen</span>
+        <span class="pill" style="background:var(--surface-2);color:var(--text-secondary);">Tegen 07/23 — geen haast</span>
+      </div>
+      <div style="display:flex;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">"Zelf gepland"</div>
+          <div style="font-size:12px;color:var(--text-secondary);">Je hebt dit zelf gepland, na een oproep of bezoek.</div>
+        </div>
+        <div style="flex:1;min-width:260px;background:var(--danger-wash);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--danger);margin-bottom:4px;">"Door de app gemarkeerd"</div>
+          <div style="font-size:12px;color:var(--text-primary);">De app merkte dat deze klant aandacht nodig heeft en heeft het voor je toegevoegd.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Een geplande actie toevoegen aan je Google Agenda</h2>
+      <p class="subtitle" style="margin-bottom:10px;">Elke geplande actie met een einddatum - in My Queue of op een klantprofiel - heeft een klein &#128197; <strong>Toevoegen aan agenda</strong>-linkje ernaast.</p>
+      <p style="font-size:13px;color:var(--text-primary);line-height:1.5;">Erop klikken opent Google Agenda in een nieuw tabblad met het event al ingevuld - klant, actie, en een link die rechtstreeks terug naar precies deze klant in TCST leidt, zodat het openen van het agenda-item op de dag zelf je hier meteen weer terugbrengt. Geen login of instellingen nodig, en er wordt niets automatisch toegevoegd - jij kiest zelf welke het waard zijn om op je agenda te zetten.</p>
+      <p class="thin-note" style="margin-top:10px;">Dit is de snelle, one-click versie. Een volledig automatische synchronisatie (elke nieuwe actie zelf toegevoegd aan je agenda) staat gepland voor later, zodra TCST een vaste plek online heeft.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:10px;">Wat er van jou verwacht wordt</h2>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:2;">
+        <li><strong>Registreer elk echt contact</strong> - oproepen, e-mails, bezoeken, notities. Dit is nu het echte dossier.</li>
+        <li><strong>Plan altijd de volgende stap</strong> - plan een opvolging, of geef aan dat er geen nodig is.</li>
+        <li><strong>Bekijk My Queue elke dag</strong> - dat is je startpagina, ze toont precies wat er moet gebeuren.</li>
+        <li><strong>Gebruik de Prioriteitenlijst om meer te vinden</strong> - als je wachtrij leeg is, ga op zoek naar wie een oproep nodig heeft.</li>
+        <li><strong>Volg je eigen voortgang op</strong> - My Progress toont je reeks en wat je hebt afgerond.</li>
+      </ul>
+      <p style="margin-top:14px;font-style:italic;color:var(--text-secondary);font-size:13px;">Echte klanten. Echte gesprekken. Niets vergeten.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:24px;">
+      <h2 style="margin-bottom:4px;">Nieuwe klanten</h2>
+      <p class="subtitle" style="margin-bottom:12px;">Elke klant die nieuw is in het maandelijkse Excel-bestand komt hier automatisch terecht en blijft er tot je ermee aan de slag bent gegaan - gekoppeld worden aan Teamleader haalt de klant niet van deze lijst.</p>
+      <ul style="margin:0 0 12px;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:1.9;">
+        <li><strong>Activeer</strong> - verschijnt zodra de klant gekoppeld is aan een echt Teamleader-bedrijf. Schrijft het Klantnummer naar Teamleader (koppeling definitief vastgezet) en opent het bedrijf daar zodat je zelf de welkomstmail kan versturen.</li>
+        <li><strong>Handmatig zoeken</strong> - verschijnt wanneer automatisch koppelen het bedrijf niet met zekerheid kon vinden. Typ een naam, e-mailadres of iets anders en kies zelf het juiste bedrijf uit de resultaten. Er verschijnt een waarschuwing als een kandidaat al een ander Klantnummer heeft, zodat je niet de verkeerde koppelt.</li>
+        <li><strong>Sluiten</strong> - voor een klant waarvan je weet dat die nooit een Teamleader-koppeling nodig zal hebben (een echte eenmalige verkoop). Geef een korte reden op; je kan het altijd later heropenen vanuit dezelfde lijst.</li>
+      </ul>
+      <p style="font-size:12.5px;color:var(--text-secondary);">De lijst is gesorteerd op Klantnummer, laagste eerst - oudste klantrelaties bovenaan, nieuwste onderaan.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">Data &amp; Refresh <span class="pill" style="background:var(--surface-2);color:var(--text-muted);font-size:10px;">Enkel manager</span></h2>
+      <p class="subtitle" style="margin-bottom:12px;">Waar een nieuw Excel-bestand binnenkomt, en waar de koppeling met Teamleader gebeurt.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        <div style="background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">Nieuw Excel-bestand uploaden</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Voordat er iets live wordt opgeslagen, wordt het bestand gecontroleerd: alle juiste kolommen zijn aanwezig, Klantnummers zijn numeriek en uniek, omzet- en categoriecijfers zijn getallen, geen enkele klant is stilletjes uit het bestand verdwenen, en geen enkele afgesloten jaaromzet is veranderd ten opzichte van wat al live staat (enkel het huidige jaar mag bewegen). Elk probleem wordt duidelijk vermeld en blokkeert de upload tot het opgelost is in het bronbestand - geen van deze zaken zou ooit legitiem mogen voorkomen bij een correcte export.</div>
+        </div>
+        <div style="background:var(--surface-2);border-radius:10px;padding:14px;">
+          <div style="font-size:13px;font-weight:700;color:var(--text-primary);margin-bottom:4px;">Sync with Teamleader</div>
+          <div style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Zoekt in Teamleader naar elke klant die nog niet gekoppeld is, op basis van naam, btw-nummer, e-mailadres, een eigen (niet-generiek) e-maildomein, telefoonnummer en contactpersoon - sterkste bewijs eerst. Loopt in een zichzelf voortzettende reeks met een Stop-knop; op elk moment veilig te stoppen en te hervatten.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;">
+      <h2 style="margin-bottom:4px;">List Builder <span class="pill" style="background:var(--surface-2);color:var(--text-muted);font-size:10px;">Enkel manager</span></h2>
+      <p class="subtitle" style="margin-bottom:12px;">Bouw een afgebakende prioriteitenlijst (per regio, land, taal, segment, categorie) en geef ze aan een specifieke verkoper.</p>
+      <p style="font-size:12.5px;color:var(--text-secondary);line-height:1.5;">Een concept kan vrij bewerkt en zonder gevolgen verwijderd worden. Eens <strong>verdeeld</strong>, worden de klanten erin echte actiepunten in de My Queue van die persoon - een verdeelde lijst verwijderen vraagt eerst om bevestiging en verwijdert die actiepunten overal, ook bij wie ze toegewezen kreeg.</p>
+    </div>
+
+    <div class="card card-pad" style="margin-top:16px;margin-bottom:24px;">
+      <h2 style="margin-bottom:4px;">Andere managertools</h2>
+      <ul style="margin:0;padding-left:20px;font-size:13px;color:var(--text-primary);line-height:2;">
+        <li><strong>Team overview / Team Analytics</strong> - werklast, dekkingshiaten, relatierisico en voortgang per persoon voor het hele team.</li>
+        <li><strong>Team &amp; Access</strong> - wie een login heeft, hun rol, en de Teamleader-koppelingsstatus.</li>
+        <li><strong>Exceptions</strong> - klanten uitgesloten van de Prioriteitenlijst, met reden en door wie; op elk moment omkeerbaar.</li>
+        <li><strong>My Super Tool</strong> - dezelfde klantdata met alle filters tegelijk beschikbaar, voor eenmalig opzoekwerk dat niet in de dagelijkse workflow past.</li>
+      </ul>
+    </div>
+  `;
+
+  function renderHelpContent() {
+    var el = document.getElementById('help-content');
+    if (!el) return;
+    var lang = localStorage.getItem('ch_test_help_lang_v1') || 'en';
+    el.innerHTML = lang === 'nl' ? HELP_CONTENT_NL : HELP_CONTENT_EN;
+    var enBtn = document.getElementById('help-lang-en'), nlBtn = document.getElementById('help-lang-nl');
+    if (enBtn && nlBtn) {
+      enBtn.style.background = lang === 'en' ? 'var(--accent-wash)' : '';
+      enBtn.style.color = lang === 'en' ? 'var(--accent)' : '';
+      nlBtn.style.background = lang === 'nl' ? 'var(--accent-wash)' : '';
+      nlBtn.style.color = lang === 'nl' ? 'var(--accent)' : '';
+    }
+  }
+  document.getElementById('help-lang-en').addEventListener('click', function () { localStorage.setItem('ch_test_help_lang_v1', 'en'); renderHelpContent(); });
+  document.getElementById('help-lang-nl').addEventListener('click', function () { localStorage.setItem('ch_test_help_lang_v1', 'nl'); renderHelpContent(); });
+  renderHelpContent();
 
   renderProfile('happyfloor');
 
