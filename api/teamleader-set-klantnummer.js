@@ -32,12 +32,16 @@ module.exports = async function handler(req, res) {
       const companyId = companyIds[kn];
       const infoRes = await tlPost(accessToken, 'companies.info', { id: companyId });
       if (!infoRes.ok) {
-        // A stale company id (e.g. the company was deleted/merged in Teamleader since this link
-        // was recorded) won't fix itself by retrying - mark done so it doesn't loop forever, but
-        // keep the real error visible for someone to look at.
-        errorCount++;
-        progress[kn] = { status: 'error', detail: infoRes.data, at: new Date().toISOString() };
-        details.push({ kn: kn, status: 'error', detail: infoRes.data });
+        // Only a genuine 404 "not found" means the stored id is actually stale (company deleted
+        // or merged in Teamleader) - that won't fix itself by retrying, so mark it done. Anything
+        // else (429 rate limit, 500, network hiccup) is transient - leave it unmarked so the next
+        // batch retries it, rather than permanently flagging a perfectly valid company as broken.
+        const isNotFound = infoRes.status === 404;
+        if (isNotFound) {
+          errorCount++;
+          progress[kn] = { status: 'error', detail: infoRes.data, at: new Date().toISOString() };
+        }
+        details.push({ kn: kn, status: isNotFound ? 'error' : 'transient_error', detail: infoRes.data, httpStatus: infoRes.status });
         continue;
       }
       const info = infoRes.data.data || {};
@@ -63,10 +67,13 @@ module.exports = async function handler(req, res) {
           writtenCount++;
           progress[kn] = { status: 'written', at: new Date().toISOString() };
           details.push({ kn: kn, status: 'written' });
-        } else {
+        } else if (updateRes.status === 404) {
           errorCount++;
           progress[kn] = { status: 'error', detail: updateRes.data, at: new Date().toISOString() };
           details.push({ kn: kn, status: 'error', detail: updateRes.data });
+        } else {
+          // Transient (429/500/etc.) - leave unmarked so it's retried, same reasoning as above.
+          details.push({ kn: kn, status: 'transient_error', detail: updateRes.data, httpStatus: updateRes.status });
         }
       }
     }
