@@ -251,7 +251,7 @@
 <div class="app">
   <nav class="sidebar">
     <div class="brand">
-      <div class="brand-mark">Internal test build</div>
+      <div class="brand-mark">Manual activation — no auto-emails yet</div>
       <div class="brand-title">Terrazza Customer Sales Tool</div>
     </div>
     <div style="margin-bottom:16px;">
@@ -3629,6 +3629,81 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
     return isNaN(n) ? 0 : n;
   }
 
+  // Pre-upload screening, run before the file is ever saved live. Checks structure (required
+  // columns present), data types (numeric fields actually numeric - a stray text value would
+  // otherwise silently become 0 via toNum with no trace), and cross-file consistency (closed
+  // years must never change once reported, since that would mean historical revenue got quietly
+  // rewritten). Deliberately does NOT try to compare current-year-to-date revenue - that column is
+  // expected to move as the year progresses. Errors block the upload outright; there is no
+  // "acknowledge and proceed anyway" for any of these - none of them should legitimately happen
+  // from a correct export.
+  var REQUIRED_TEXT_COLUMNS = ['Klantnummer', 'Naam', 'Plaats', 'Land', 'Postcode', 'Contactpersoon', 'Telefoon', 'E-Mailadres', 'Btw-/ondernemingsnummer'];
+
+  function validateUploadRows(rows, headers, YEARS, CURRENT_FULL_YEAR, oldDirectory) {
+    var errors = [];
+
+    var missingCols = REQUIRED_TEXT_COLUMNS.filter(function (c) { return headers.indexOf(c) === -1; });
+    if (missingCols.length) errors.push('Missing required column' + (missingCols.length === 1 ? '' : 's') + ': ' + missingCols.join(', ') + '.');
+    var missingCatCols = CAT_COLS.filter(function (c) { return headers.indexOf(c) === -1; });
+    if (missingCatCols.length) errors.push('Missing category column' + (missingCatCols.length === 1 ? '' : 's') + ': ' + missingCatCols.join(', ') + '.');
+
+    // Can't safely check row-level data if the columns those checks depend on aren't even there.
+    if (missingCols.indexOf('Klantnummer') !== -1 || missingCols.indexOf('Naam') !== -1) return { errors: errors };
+
+    var knCounts = {}, blankKn = 0, nonNumericKn = 0;
+    rows.forEach(function (row) {
+      var raw = row['Klantnummer'];
+      if (raw === null || raw === undefined || raw === '') { blankKn++; return; }
+      var kn = parseInt(raw, 10);
+      if (isNaN(kn)) { nonNumericKn++; return; }
+      knCounts[kn] = (knCounts[kn] || 0) + 1;
+    });
+    if (blankKn) errors.push(blankKn + ' row' + (blankKn === 1 ? ' has' : 's have') + ' a blank Klantnummer.');
+    if (nonNumericKn) errors.push(nonNumericKn + ' row' + (nonNumericKn === 1 ? ' has' : 's have') + ' a non-numeric Klantnummer.');
+    var dupes = Object.keys(knCounts).filter(function (kn) { return knCounts[kn] > 1; });
+    if (dupes.length) errors.push(dupes.length + ' duplicate Klantnummer' + (dupes.length === 1 ? '' : 's') + ': ' + dupes.slice(0, 10).join(', ') + (dupes.length > 10 ? ', ...' : '') + '.');
+
+    var numericCols = YEARS.map(function (y) { return 'Omzet_' + y; }).concat(CAT_COLS.filter(function (c) { return headers.indexOf(c) !== -1; }));
+    var badNumericCounts = {};
+    rows.forEach(function (row) {
+      numericCols.forEach(function (col) {
+        var v = row[col];
+        if (v === null || v === undefined || v === '') return;
+        if (typeof v !== 'number' || isNaN(v)) badNumericCounts[col] = (badNumericCounts[col] || 0) + 1;
+      });
+    });
+    Object.keys(badNumericCounts).forEach(function (col) {
+      errors.push(badNumericCounts[col] + ' row' + (badNumericCounts[col] === 1 ? ' has' : 's have') + ' a non-numeric value in ' + col + '.');
+    });
+
+    if (oldDirectory && oldDirectory.records && oldDirectory.records.length) {
+      var oldByKnForCheck = {};
+      oldDirectory.records.forEach(function (r) { oldByKnForCheck[r[0]] = r; });
+      var oldYears = oldDirectory.years || [];
+      var closedYears = YEARS.filter(function (y) { return y < CURRENT_FULL_YEAR && oldYears.indexOf(y) !== -1; });
+      var mismatchCount = 0, mismatchExamples = [];
+      rows.forEach(function (row) {
+        var kn = parseInt(row['Klantnummer'], 10);
+        if (isNaN(kn)) return;
+        var old = oldByKnForCheck[kn];
+        if (!old) return;
+        closedYears.forEach(function (y) {
+          var oldVal = old[11 + oldYears.indexOf(y)];
+          var newVal = Math.round(toNum(row['Omzet_' + y]));
+          if (typeof oldVal === 'number' && oldVal !== newVal) {
+            mismatchCount++;
+            if (mismatchExamples.length < 5) mismatchExamples.push('kn ' + kn + ' (' + y + ': ' + oldVal + ' → ' + newVal + ')');
+          }
+        });
+      });
+      if (mismatchCount) {
+        errors.push(mismatchCount + ' closed-year revenue value' + (mismatchCount === 1 ? '' : 's') + ' changed from the current data - a closed year should never change once reported: ' + mismatchExamples.join(', ') + (mismatchCount > mismatchExamples.length ? ', ...' : '') + '.');
+      }
+    }
+
+    return { errors: errors };
+  }
+
   function buildDirectoryFromRows(rows, oldDirectory) {
     var headers = rows.length ? Object.keys(rows[0]) : [];
     var yearCols = headers.filter(function (h) { return /^Omzet_\d{4}$/.test(h); });
@@ -3639,6 +3714,8 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
     if (YEARS.indexOf(CURRENT_FULL_YEAR) === -1) {
       CURRENT_FULL_YEAR = YEARS.length >= 2 ? YEARS[YEARS.length - 2] : YEARS[YEARS.length - 1];
     }
+
+    var validation = validateUploadRows(rows, headers, YEARS, CURRENT_FULL_YEAR, oldDirectory);
 
     var oldByKn = {};
     (oldDirectory.records || []).forEach(function (r) { oldByKn[r[0]] = r; });
@@ -3701,10 +3778,16 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
     (oldDirectory.records || []).forEach(function (r) {
       if (!seenKns[r[0]]) removedKns.push({ kn: r[0], naam: r[1] });
     });
+    // Customers should never disappear from a correct export - always an error, never a warning
+    // to click past, so it's folded into validation.errors rather than shown as a soft notice.
+    if (removedKns.length) {
+      validation.errors.push(removedKns.length + ' customer' + (removedKns.length === 1 ? '' : 's') + ' from the current data ' + (removedKns.length === 1 ? 'is' : 'are') + ' missing from this file - customers should never disappear from the export: ' +
+        removedKns.slice(0, 10).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (removedKns.length > 10 ? ', ...' : '') + '.');
+    }
 
     return {
       directory: { years: YEARS, currentFullYear: CURRENT_FULL_YEAR, countries: oldCountries, records: records },
-      newKns: newKns, removedKns: removedKns
+      newKns: newKns, removedKns: removedKns, validation: validation
     };
   }
 
@@ -3732,59 +3815,69 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
         status.innerHTML = '<div style="font-size:12px;color:var(--danger);">' + err.message + '</div>';
         return;
       }
-      var newCount = built.newKns.length, removedCount = built.removedKns.length;
+      var newCount = built.newKns.length;
       var newList = built.newKns.slice(0, 8).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (newCount > 8 ? ', +' + (newCount - 8) + ' more' : '');
-      var removedList = built.removedKns.slice(0, 8).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (removedCount > 8 ? ', +' + (removedCount - 8) + ' more' : '');
+      var errors = built.validation ? built.validation.errors : [];
+      var hasErrors = errors.length > 0;
+
+      var errorsHtml = hasErrors ?
+        '<div style="font-size:12px;font-weight:600;color:var(--danger);margin-bottom:6px;">This file did not pass screening — fix the issues below in the source file and re-export before uploading:</div>' +
+        '<ul style="font-size:12px;color:var(--danger);margin:0 0 10px 18px;padding:0;">' +
+        errors.map(function (e) { return '<li style="margin-bottom:4px;">' + e + '</li>'; }).join('') +
+        '</ul>' : '';
 
       status.innerHTML =
         '<div class="newaction-panel">' +
         '<div style="font-size:12px;margin-bottom:8px;"><strong>' + file.name + '</strong> (' + sizeKb + ' KB) — sheet "' + parsed.sheetName + '", ' + built.directory.records.length + ' customer rows.</div>' +
-        '<div style="font-size:12px;margin-bottom:6px;">' + newCount + ' new customer' + (newCount === 1 ? '' : 's') + (newCount ? ': ' + newList : '') + '</div>' +
-        (removedCount ? '<div style="font-size:12px;margin-bottom:6px;color:var(--warning);">⚠ ' + removedCount + ' customer' + (removedCount === 1 ? '' : 's') + ' in the current data are missing from this file: ' + removedList + '. Confirming will remove them — cancel and check the file first if that\'s not intended.</div>' : '') +
-        '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Existing customers keep their Teamleader match, contacts and deal history. New customers show as not-yet-matched until you run "Sync with Teamleader".</div>' +
-        '<div class="feedback-panel-actions"><button class="feedback-save-btn" id="confirm-upload-btn">Confirm upload</button>' +
+        errorsHtml +
+        (!hasErrors ? '<div style="font-size:12px;margin-bottom:6px;">' + newCount + ' new customer' + (newCount === 1 ? '' : 's') + (newCount ? ': ' + newList : '') + '</div>' : '') +
+        (!hasErrors ? '<div style="font-size:11px;color:var(--text-muted);margin-bottom:10px;">Existing customers keep their Teamleader match, contacts and deal history. New customers show as not-yet-matched until you run "Sync with Teamleader".</div>' : '') +
+        '<div class="feedback-panel-actions">' +
+        (hasErrors ? '' : '<button class="feedback-save-btn" id="confirm-upload-btn">Confirm upload</button>') +
         '<button class="feedback-cancel-btn" id="cancel-upload-btn">Cancel</button></div></div>';
 
-      document.getElementById('confirm-upload-btn').addEventListener('click', function () {
-        var btn = document.getElementById('confirm-upload-btn');
-        btn.disabled = true;
-        status.querySelector('.feedback-panel-actions').insertAdjacentHTML('afterend', '<div id="upload-progress" style="font-size:12px;color:var(--text-secondary);margin-top:8px;">Saving to the shared database...</div>');
-        saveDatasetToSupabase('directory', built.directory).then(function () {
-          DIRECTORY = built.directory;
-          DIRECTORY_BY_KN = null;
-          var hist = loadRefreshHistory();
-          hist.forEach(function (h) { if (h.status === 'pending') h.status = 'superseded'; });
-          saveCurrentFilename(file.name);
-          hist.push({
-            date: new Date().toISOString().slice(0, 10),
-            total: built.directory.records.length, matched: built.directory.records.filter(function (r) { return r[10] === 1; }).length,
-            type: 'upload', filename: currentFilename, isNewFile: true, status: 'pending', version: currentFileMeta.version,
-            performedBy: currentLogin.person
-          });
-          savePendingRefresh(true);
-          updateRefreshButtonState();
-          localStorage.setItem(REFRESH_HISTORY_KEY, JSON.stringify(hist));
-          renderRefreshHistory();
-          renderDataOverview();
-          var queuePromise = Promise.resolve();
-          if (built.newKns.length) {
-            var today = new Date().toISOString().slice(0, 10);
-            var versionLabel = 'v' + currentFileMeta.version;
-            var existingKns = {};
-            newCustomerQueue.forEach(function (e) { existingKns[e.kn] = true; });
-            built.newKns.forEach(function (c) {
-              if (!existingKns[c.kn]) newCustomerQueue.push({ kn: c.kn, addedVersion: versionLabel, addedAt: today });
+      if (!hasErrors) {
+        document.getElementById('confirm-upload-btn').addEventListener('click', function () {
+          var btn = document.getElementById('confirm-upload-btn');
+          btn.disabled = true;
+          status.querySelector('.feedback-panel-actions').insertAdjacentHTML('afterend', '<div id="upload-progress" style="font-size:12px;color:var(--text-secondary);margin-top:8px;">Saving to the shared database...</div>');
+          saveDatasetToSupabase('directory', built.directory).then(function () {
+            DIRECTORY = built.directory;
+            DIRECTORY_BY_KN = null;
+            var hist = loadRefreshHistory();
+            hist.forEach(function (h) { if (h.status === 'pending') h.status = 'superseded'; });
+            saveCurrentFilename(file.name);
+            hist.push({
+              date: new Date().toISOString().slice(0, 10),
+              total: built.directory.records.length, matched: built.directory.records.filter(function (r) { return r[10] === 1; }).length,
+              type: 'upload', filename: currentFilename, isNewFile: true, status: 'pending', version: currentFileMeta.version,
+              performedBy: currentLogin.person
             });
-            queuePromise = saveNewCustomerQueue();
-          }
-          queuePromise.then(function () {
-            if (typeof renderNewCust === 'function') renderNewCust();
-            status.innerHTML = '<div style="font-size:12px;color:var(--success);">Live: ' + built.directory.records.length + ' customers, ' + newCount + ' new. Everyone using the app now sees this data.</div>';
+            savePendingRefresh(true);
+            updateRefreshButtonState();
+            localStorage.setItem(REFRESH_HISTORY_KEY, JSON.stringify(hist));
+            renderRefreshHistory();
+            renderDataOverview();
+            var queuePromise = Promise.resolve();
+            if (built.newKns.length) {
+              var today = new Date().toISOString().slice(0, 10);
+              var versionLabel = 'v' + currentFileMeta.version;
+              var existingKns = {};
+              newCustomerQueue.forEach(function (e) { existingKns[e.kn] = true; });
+              built.newKns.forEach(function (c) {
+                if (!existingKns[c.kn]) newCustomerQueue.push({ kn: c.kn, addedVersion: versionLabel, addedAt: today });
+              });
+              queuePromise = saveNewCustomerQueue();
+            }
+            queuePromise.then(function () {
+              if (typeof renderNewCust === 'function') renderNewCust();
+              status.innerHTML = '<div style="font-size:12px;color:var(--success);">Live: ' + built.directory.records.length + ' customers, ' + newCount + ' new. Everyone using the app now sees this data.</div>';
+            });
+          }).catch(function (err) {
+            status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Could not save to the database: ' + (err.message || err) + '</div>';
           });
-        }).catch(function (err) {
-          status.innerHTML = '<div style="font-size:12px;color:var(--danger);">Could not save to the database: ' + (err.message || err) + '</div>';
         });
-      });
+      }
       document.getElementById('cancel-upload-btn').addEventListener('click', function () {
         status.innerHTML = '';
         document.getElementById('excel-upload-input').value = '';
