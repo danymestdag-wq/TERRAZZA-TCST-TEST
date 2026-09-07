@@ -3637,10 +3637,17 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
   // expected to move as the year progresses. Errors block the upload outright; there is no
   // "acknowledge and proceed anyway" for any of these - none of them should legitimately happen
   // from a correct export.
+  //
+  // TEMPORARILY DISABLED (2026-09-07): the currently-live data has a known error in it, so
+  // correcting it would itself look like a "closed year changed" / "customer disappeared"
+  // violation against that bad baseline - exactly the case this screening can't tell apart from a
+  // real mistake. Flip back to true once the corrected file is uploaded and live.
+  var UPLOAD_SCREENING_ENABLED = false;
   var REQUIRED_TEXT_COLUMNS = ['Klantnummer', 'Naam', 'Plaats', 'Land', 'Postcode', 'Contactpersoon', 'Telefoon', 'E-Mailadres', 'Btw-/ondernemingsnummer'];
 
   function validateUploadRows(rows, headers, YEARS, CURRENT_FULL_YEAR, oldDirectory) {
     var errors = [];
+    if (!UPLOAD_SCREENING_ENABLED) return { errors: errors };
 
     var missingCols = REQUIRED_TEXT_COLUMNS.filter(function (c) { return headers.indexOf(c) === -1; });
     if (missingCols.length) errors.push('Missing required column' + (missingCols.length === 1 ? '' : 's') + ': ' + missingCols.join(', ') + '.');
@@ -3780,7 +3787,7 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
     });
     // Customers should never disappear from a correct export - always an error, never a warning
     // to click past, so it's folded into validation.errors rather than shown as a soft notice.
-    if (removedKns.length) {
+    if (UPLOAD_SCREENING_ENABLED && removedKns.length) {
       validation.errors.push(removedKns.length + ' customer' + (removedKns.length === 1 ? '' : 's') + ' from the current data ' + (removedKns.length === 1 ? 'is' : 'are') + ' missing from this file - customers should never disappear from the export: ' +
         removedKns.slice(0, 10).map(function (c) { return c.naam + ' (kn ' + c.kn + ')'; }).join(', ') + (removedKns.length > 10 ? ', ...' : '') + '.');
     }
