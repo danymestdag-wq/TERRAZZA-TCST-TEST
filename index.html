@@ -1924,18 +1924,21 @@
     (excluded || []).forEach(function (e) { excludedKns[e.Klantnummer] = true; });
     var byKn = {};
     DIRECTORY.records.forEach(function (r) { byKn[r[0]] = r; });
-    var isManager = currentLogin.role === 'manager';
+    // Same scoping rule as Priority List/My Queue - territoryForOwner(currentLogin.person),
+    // not a manager-sees-everything bypass. Dany is a manager but also personally works the
+    // "other" territory, so he sees his own new customers here same as Nasier sees Benelux -
+    // cross-team visibility belongs in Team Overview/Team Analytics, not this personal list.
+    var myTerritory = territoryForOwner(currentLogin.person);
     return (newCustomerQueue || [])
       .filter(function (entry) { return !excludedKns[entry.kn]; })
       .map(function (entry) {
         var r = byKn[entry.kn];
         if (!r) return null;
-        var owner = r[5] === 0 ? 'Nasier Azahaf' : 'Dany Mestdag';
-        if (!isManager && owner !== currentLogin.person) return null;
+        if (!territoryMatches(r, myTerritory)) return null;
         return {
           kn: entry.kn, name: r[1], city: r[2], country: DIRECTORY.countries[r[3]] || '',
           hasCompanyMatch: !!(TEAMLEADER_COMPANY_IDS && TEAMLEADER_COMPANY_IDS[entry.kn]),
-          addedVersion: entry.addedVersion, addedAt: entry.addedAt, ageDays: daysSince(entry.addedAt), owner: owner
+          addedVersion: entry.addedVersion, addedAt: entry.addedAt, ageDays: daysSince(entry.addedAt)
         };
       })
       .filter(Boolean)
@@ -3713,6 +3716,7 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
         totalChecked += r.checked;
         totalMatched += r.matchedCount;
         if (r.directory) { DIRECTORY = r.directory; DIRECTORY_BY_KN = null; }
+        if (r.companyIds) { TEAMLEADER_COMPANY_IDS = r.companyIds; }
         if (typeof renderNewCust === 'function') renderNewCust();
         renderDataOverview();
         if (r.checked === 0 || r.stillUnmatchedCount === 0 || totalChecked >= initialUnmatched) {
