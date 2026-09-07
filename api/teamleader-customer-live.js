@@ -9,6 +9,7 @@
 const { getAccessToken, tlPost, getDataset } = require('./_teamleader');
 
 const KLANTTYPE_FIELD_ID = '094c7d72-6c35-020b-b453-766c4374b923';
+
 module.exports = async function handler(req, res) {
   try {
     const kn = parseInt(req.query.kn);
@@ -35,7 +36,11 @@ module.exports = async function handler(req, res) {
       (phasesRes.data.data || []).forEach(function (p) { phaseNames[p.id] = p.name; });
     }
 
-    const dealsRes = await tlPost(accessToken, 'deals.list', { filter: { company_id: companyId }, page: { size: 20 } });
+    // filter:{company_id} is silently ignored by Teamleader (confirmed empirically - it just
+    // returns a generic recent-deals list unrelated to the requested company, the same kind of
+    // silent-fallback behavior already found with companies.list's filter.name). The real,
+    // verified-working shape mirrors how the deal's own lead.customer field is structured.
+    const dealsRes = await tlPost(accessToken, 'deals.list', { filter: { customer: { type: 'company', id: companyId } }, page: { size: 20 } });
     const deals = (dealsRes.ok ? (dealsRes.data.data || []) : []).map(function (d) {
       return {
         title: d.title,
@@ -45,7 +50,6 @@ module.exports = async function handler(req, res) {
         createdAt: d.created_at
       };
     });
-
     const contactsRes = await tlPost(accessToken, 'contacts.list', { filter: { company_id: companyId }, page: { size: 10 } });
     const contactStubs = contactsRes.ok ? (contactsRes.data.data || []) : [];
     const contacts = [];
@@ -66,4 +70,3 @@ module.exports = async function handler(req, res) {
     res.status(500).json({ error: err.message });
   }
 };
-
