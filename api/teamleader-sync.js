@@ -15,6 +15,16 @@
 // an exact name match once punctuation/spacing is stripped ("Corn.bak BV" == "Corn.bak B.v."),
 // or the shorter of the two names is a genuine, non-trivial (5+ char) prefix of the longer one
 // ("nielsbulder" prefixes "nielsbuldertuinenparkmachines") - never a same-length fuzzy guess.
+//
+// Progress tracking (teamleader_sync_status dataset entry): a batch used to always re-check the
+// same top-N unmatched customers forever if none of them matched, since "not matched" never
+// changes their position in a plain Klantnummer sort. Deliberately NOT a permanent "unmatchable"
+// flag either - Teamleader's own data changes over time, so a customer with nothing today might
+// have a real match next month. Instead: every checked customer gets a checkedAt timestamp;
+// never-checked customers go first (newest Klantnummer first), then the least-recently-checked
+// ones - so every click makes real forward progress, and the whole backlog naturally loops back
+// around for a fresh look once it's been fully swept, with no customer ever permanently written
+// off.
 const { getAccessToken, tlPost, getDirectory, saveDirectory, getDataset, saveDataset } = require('./_teamleader');
 
 const KLANTTYPE_FIELD_ID = '094c7d72-6c35-020b-b453-766c4374b923';
@@ -63,18 +73,26 @@ module.exports = async function handler(req, res) {
     const accessToken = await getAccessToken();
     const directory = await getDirectory();
     const companyIds = (await getDataset('teamleader_company_ids')) || {};
+    const syncStatus = (await getDataset('teamleader_sync_status')) || {};
 
     const records = directory.records;
     const onlyKn = req.query.kn ? parseInt(req.query.kn) : null;
     const unmatched = records.filter(function (r) { return r[10] === 0 && (onlyKn === null || r[0] === onlyKn); });
-    // Highest Klantnummer first - new customers get the newest numbers, and checking them is
-    // what people actually want from this button, not working through years of old backlog
-    // in whatever order the Excel file happened to list them.
-    unmatched.sort(function (a, b) { return b[0] - a[0]; });
+    // Never-checked first (newest Klantnummer first among those), then oldest-checked first -
+    // guarantees forward progress instead of endlessly retrying the same stuck customers.
+    unmatched.sort(function (a, b) {
+      const aChecked = syncStatus[a[0]] ? syncStatus[a[0]].checkedAt : null;
+      const bChecked = syncStatus[b[0]] ? syncStatus[b[0]].checkedAt : null;
+      if (!aChecked && !bChecked) return b[0] - a[0];
+      if (!aChecked) return -1;
+      if (!bChecked) return 1;
+      return aChecked < bChecked ? -1 : aChecked > bChecked ? 1 : 0;
+    });
     const toCheck = onlyKn !== null ? unmatched : unmatched.slice(0, BATCH_LIMIT);
 
     let matchedCount = 0;
     const details = [];
+    const now = new Date().toISOString();
 
     for (const rec of toCheck) {
       const kn = rec[0];
@@ -92,13 +110,17 @@ module.exports = async function handler(req, res) {
         rec[10] = 1;
         if (klanttype) rec[4] = klanttype;
         companyIds[kn] = company.id;
+        delete syncStatus[kn];
         matchedCount++;
         details.push({ kn: kn, name: name, status: 'matched', matchedName: company.name, klanttype: klanttype });
       } else {
-        details.push({ kn: kn, name: name, status: found.candidates.length ? 'needs_review' : 'not_found', candidateCount: found.candidates.length });
+        const status = found.candidates.length ? 'needs_review' : 'not_found';
+        syncStatus[kn] = { status: status, checkedAt: now, candidateCount: found.candidates.length };
+        details.push({ kn: kn, name: name, status: status, candidateCount: found.candidates.length });
       }
     }
 
+    await saveDataset('teamleader_sync_status', syncStatus);
     if (matchedCount > 0) {
       await saveDirectory(directory);
       await saveDataset('teamleader_company_ids', companyIds);
