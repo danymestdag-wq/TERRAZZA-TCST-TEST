@@ -252,7 +252,7 @@
   <nav class="sidebar">
     <div class="brand">
       <div class="brand-mark">Internal test build</div>
-      <div class="brand-title">Customer health</div>
+      <div class="brand-title">Terrazza Customer Sales Tool</div>
     </div>
     <div style="margin-bottom:16px;">
       <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;">Logged in as</div>
@@ -274,7 +274,8 @@
     <button class="nav-item" data-view="teamaccess" data-manager-only="1">Team &amp; Access</button>
     <button class="nav-item" data-view="exceptions" data-manager-only="1">Exceptions</button>
     <button class="nav-item" data-view="datarefresh" data-manager-only="1">Data &amp; Refresh</button>
-    <div class="sidebar-footer">Real Teamleader + turnover data. Built to test the concept before the real app is wired up.</div>
+    <div class="sidebar-footer">Real Teamleader + turnover data. Built to test the concept before the real app is wired up.<br />v1.0 · &copy; Terrazza MC <span id="footer-copyright-year"></span></div>
+    <script>document.getElementById('footer-copyright-year').textContent = new Date().getFullYear();</script>
   </nav>
 
   <main class="content">
@@ -1086,7 +1087,7 @@
 
 <div id="auth-overlay" style="position:fixed;inset:0;background:var(--bg-0);display:flex;align-items:center;justify-content:center;z-index:1000;font-family:-apple-system,'Segoe UI',sans-serif;">
   <div style="width:100%;max-width:340px;padding:32px;background:var(--surface-1,#fff);border:1px solid var(--border,#D6D8CE);border-radius:12px;">
-    <div style="font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--accent,#B8501C);text-transform:uppercase;margin-bottom:2px;">TCST test</div>
+    <div style="font-family:ui-monospace,monospace;font-size:11px;letter-spacing:.08em;color:var(--accent,#B8501C);text-transform:uppercase;margin-bottom:2px;">Terrazza Customer Sales Tool</div>
     <div style="font-size:18px;font-weight:700;margin-bottom:20px;">Sign in</div>
     <div id="auth-form">
       <label style="font-size:12px;color:var(--text-muted,#8B8E80);display:block;margin-bottom:4px;">Email</label>
