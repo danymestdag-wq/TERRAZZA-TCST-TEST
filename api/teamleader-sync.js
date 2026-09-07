@@ -1,11 +1,10 @@
 // Real "Sync with Teamleader" endpoint. For every customer not yet matched (matched=0 in the
-// live directory), searches Teamleader by name and links it when there's a confident single
-// match - confirmed working filter shape: companies.list with filter.term (NOT filter.name,
-// which is silently ignored and returns an unrelated default list - verified empirically before
-// building this, see api/teamleader-test.js). Anything ambiguous or not found is left alone,
+// live directory), tries several independent signals to find the right Teamleader company and
+// links it when there's a confident single match. Anything ambiguous or not found is left alone,
 // same conservative "only auto-link on strong evidence" rule used throughout this project's
 // earlier manual contact-matching work.
 //
+// SIGNAL 1 - company name (unchanged from the original version):
 // Real-world gotcha found testing this against live data: Teamleader's term search wants the
 // term to closely match the stored name's tokens - "Corn.bak BV" (Excel) found nothing, only
 // "Corn.bak" did (company is stored as "Corn.bak B.v."); "Niels Bulder Tuin en Parkmachines"
@@ -15,6 +14,27 @@
 // an exact name match once punctuation/spacing is stripped ("Corn.bak BV" == "Corn.bak B.v."),
 // or the shorter of the two names is a genuine, non-trivial (5+ char) prefix of the longer one
 // ("nielsbulder" prefixes "nielsbuldertuinenparkmachines") - never a same-length fuzzy guess.
+//
+// SIGNALS 2-5 - email, dedicated email domain, phone, contact person (added later, when name-only
+// matching proved too limited - a lot of real customers use a trading name in the Excel sheet
+// that doesn't resemble what's stored in Teamleader at all). All four go through the same path:
+// search contacts.list by the value (Teamleader's term search covers contact name AND email, and
+// - confirmed empirically - also matches a bare domain fragment like "janbogaerts.be" with no
+// local part), and if EXACTLY ONE contact comes back, follow it to its company via contacts.info's
+// `companies[].company.id` (confirmed present on real data - a contact carries a direct back-
+// reference to the company it belongs to). Same conservative rule as name matching: more than one
+// hit, or a contact not linked to exactly one company, is treated as no match rather than guessed.
+//
+// Email domain is deliberately restricted to "dedicated" domains - a shared free/ISP mail
+// provider (gmail.com, hotmail.com, telenet.be, ...) tells us nothing about which company someone
+// belongs to and would produce false positives, so those are skipped via FREEMAIL_DOMAINS.
+//
+// Phone matching only tries the number exactly as Teamleader would display it (the raw Excel
+// value, lightly trimmed) - confirmed empirically that Teamleader's search matches a phone number
+// formatted the way it's actually stored ("+32 2 582 80 47"), but a digits-only concatenation of
+// the same number returned ZERO results while a differently-truncated digit string returned a
+// coincidental hit. That's not reliable enough to trust, so no digit-stripping/reformatting is
+// attempted - only the value as typed in Excel.
 //
 // Progress tracking (teamleader_sync_status dataset entry): a batch used to always re-check the
 // same top-N unmatched customers forever if none of them matched, since "not matched" never
@@ -28,11 +48,21 @@
 const { getAccessToken, tlPost, getDirectory, saveDirectory, getDataset, saveDataset } = require('./_teamleader');
 
 const KLANTTYPE_FIELD_ID = '094c7d72-6c35-020b-b453-766c4374b923';
-// Each customer can need up to 3 sequential search calls (full name, then shorter fallbacks)
-// plus one companies.info call when matched - a batch of 20 was measured taking ~15-19s in
-// practice, right at the edge of (and sometimes past) Vercel's function timeout. 10 keeps
-// each click comfortably fast and reliable; just means more clicks to clear a big backlog.
-const BATCH_LIMIT = 10;
+// Each customer can now need several sequential lookups (name variants, then email/domain/phone/
+// contact fallbacks - each only attempted if the field is actually filled in, and each stops
+// immediately on the first confident hit). That's a heavier worst case per customer than the
+// original name-only version, so the batch is kept small to stay clear of Vercel's function
+// timeout - just means more clicks to clear a big backlog.
+const BATCH_LIMIT = 5;
+
+const FREEMAIL_DOMAINS = new Set([
+  'gmail.com', 'googlemail.com', 'hotmail.com', 'hotmail.be', 'hotmail.nl', 'hotmail.fr', 'hotmail.de',
+  'outlook.com', 'outlook.be', 'live.com', 'live.be', 'live.nl', 'msn.com', 'yahoo.com', 'yahoo.be',
+  'yahoo.nl', 'yahoo.fr', 'icloud.com', 'me.com', 'mac.com', 'aol.com', 'ymail.com',
+  'telenet.be', 'skynet.be', 'scarlet.be', 'base.be', 'proximus.be', 'pandora.be', 'tiscali.be',
+  'chello.nl', 'ziggo.nl', 'kpnmail.nl', 'home.nl', 'planet.nl', 'xs4all.nl', 'online.nl', 'quicknet.nl',
+  'wanadoo.fr', 'orange.fr', 'free.fr', 'sfr.fr', 'laposte.net', 'gmx.com', 'gmx.net', 'web.de', 't-online.de'
+]);
 
 function normalizeName(s) {
   return String(s || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
@@ -56,16 +86,72 @@ function searchTermVariants(name) {
   return [...new Set(variants)].filter(Boolean);
 }
 
-async function findCompanyMatch(accessToken, name) {
+function emailDomain(email) {
+  const m = String(email || '').trim().toLowerCase().match(/@([^@\s]+)$/);
+  return m ? m[1] : null;
+}
+
+// Finds a company via a single contact search term (email, domain, phone, or contact name).
+// Only accepts an exact, unambiguous chain: exactly one contact found, linked to exactly one
+// company - anything else (0 or 2+ contacts, or a contact tied to multiple/no companies) is left
+// alone rather than guessed.
+async function companyViaContactSearch(accessToken, term) {
+  const trimmed = String(term || '').trim();
+  if (!trimmed) return { candidates: [] };
+  const searchRes = await tlPost(accessToken, 'contacts.list', { filter: { term: trimmed }, page: { size: 5 } });
+  const contacts = searchRes.ok ? (searchRes.data.data || []) : [];
+  if (contacts.length !== 1) return { candidates: contacts };
+  const infoRes = await tlPost(accessToken, 'contacts.info', { id: contacts[0].id });
+  if (!infoRes.ok) return { candidates: contacts };
+  const links = (infoRes.data.data || {}).companies || [];
+  if (links.length !== 1 || !links[0].company) return { candidates: contacts };
+  const companyRes = await tlPost(accessToken, 'companies.info', { id: links[0].company.id });
+  if (!companyRes.ok || !companyRes.data.data) return { candidates: contacts };
+  // companies.info (unlike companies.list) already includes custom_fields, so the caller can
+  // skip re-fetching it just to read klanttype.
+  return { candidates: contacts, company: companyRes.data.data, info: companyRes.data.data };
+}
+
+async function findCompanyMatch(accessToken, rec) {
+  const name = rec[1];
+  const contactperson = rec[34];
+  const phone = rec[35];
+  const email = rec[36];
+
+  let nameCandidates = [];
   for (const term of searchTermVariants(name)) {
     const searchRes = await tlPost(accessToken, 'companies.list', { filter: { term: term }, page: { size: 5 } });
     const candidates = searchRes.ok ? (searchRes.data.data || []) : [];
     if (candidates.length === 0) continue;
-    if (candidates.length > 1) return { candidates: candidates, ambiguous: true };
-    if (namesAreCloseMatch(candidates[0].name, name)) return { candidates: candidates, company: candidates[0] };
-    return { candidates: candidates, ambiguous: true };
+    nameCandidates = candidates;
+    if (candidates.length === 1 && namesAreCloseMatch(candidates[0].name, name)) {
+      return { candidates: candidates, company: candidates[0], matchedVia: 'name' };
+    }
+    break;
   }
-  return { candidates: [] };
+
+  if (email) {
+    const byEmail = await companyViaContactSearch(accessToken, email);
+    if (byEmail.company) return { candidates: byEmail.candidates, company: byEmail.company, info: byEmail.info, matchedVia: 'email' };
+  }
+
+  const domain = emailDomain(email);
+  if (domain && !FREEMAIL_DOMAINS.has(domain)) {
+    const byDomain = await companyViaContactSearch(accessToken, domain);
+    if (byDomain.company) return { candidates: byDomain.candidates, company: byDomain.company, info: byDomain.info, matchedVia: 'domain' };
+  }
+
+  if (phone) {
+    const byPhone = await companyViaContactSearch(accessToken, phone);
+    if (byPhone.company) return { candidates: byPhone.candidates, company: byPhone.company, info: byPhone.info, matchedVia: 'phone' };
+  }
+
+  if (contactperson) {
+    const byContact = await companyViaContactSearch(accessToken, contactperson);
+    if (byContact.company) return { candidates: byContact.candidates, company: byContact.company, info: byContact.info, matchedVia: 'contact' };
+  }
+
+  return { candidates: nameCandidates };
 }
 
 module.exports = async function handler(req, res) {
@@ -97,12 +183,15 @@ module.exports = async function handler(req, res) {
     for (const rec of toCheck) {
       const kn = rec[0];
       const name = rec[1];
-      const found = await findCompanyMatch(accessToken, name);
+      const found = await findCompanyMatch(accessToken, rec);
 
       if (found.company) {
         const company = found.company;
-        const infoRes = await tlPost(accessToken, 'companies.info', { id: company.id });
-        const info = infoRes.ok ? (infoRes.data.data || {}) : {};
+        let info = found.info;
+        if (!info) {
+          const infoRes = await tlPost(accessToken, 'companies.info', { id: company.id });
+          info = infoRes.ok ? (infoRes.data.data || {}) : {};
+        }
         let klanttype = null;
         (info.custom_fields || []).forEach(function (cf) {
           if (cf.definition && cf.definition.id === KLANTTYPE_FIELD_ID) klanttype = cf.value;
@@ -112,7 +201,7 @@ module.exports = async function handler(req, res) {
         companyIds[kn] = company.id;
         delete syncStatus[kn];
         matchedCount++;
-        details.push({ kn: kn, name: name, status: 'matched', matchedName: company.name, klanttype: klanttype });
+        details.push({ kn: kn, name: name, status: 'matched', matchedName: company.name, matchedVia: found.matchedVia, klanttype: klanttype });
       } else {
         const status = found.candidates.length ? 'needs_review' : 'not_found';
         syncStatus[kn] = { status: status, checkedAt: now, candidateCount: found.candidates.length };
