@@ -3148,8 +3148,14 @@
           relatedPts.length + ' action point' + (relatedPts.length === 1 ? '' : 's') +
           (doneCount ? ' (' + doneCount + ' already marked done)' : '') + ' for everyone. This cannot be undone.';
         if (!window.confirm(msg)) return;
+        var removedIds = relatedPts.map(function (ap) { return ap.id; });
         actionPoints = actionPoints.filter(function (ap) { return !(ap.listKey === delKey && ap.listVersion === delVersion); });
-        saveActionPoints();
+        localStorage.setItem(ACTIONPOINTS_KEY, JSON.stringify(actionPoints));
+        // saveActionPoints() only upserts survivors - it never deletes rows from Supabase, so a
+        // removed action point would otherwise keep existing there forever and still show up for
+        // whoever it was assigned to (which is exactly the bug: Nasier's queue loads straight from
+        // Supabase, so it kept showing "deleted" items). Delete the specific rows explicitly.
+        if (sb && removedIds.length) sb.from('action_points').delete().in('id', removedIds).then(function (res) { if (res.error) console.error('deleteGenList action_points cleanup failed', res.error); });
       }
       genLists = genLists.filter(function (l) { return !(l.key === delKey && l.version === delVersion); });
       saveGenLists();
@@ -3481,11 +3487,41 @@ var TIER_NAMES = ['High', 'Medium', 'Low'];
         '<p style="font-size:11px;color:var(--text-muted);margin:8px 0 0;">2026 is year-to-date (striped bar). Real Excel data.</p></div>' +
       '<div class="card-pad"><h2 style="margin-bottom:10px;">Product category mix</h2>' + cats +
         '<p style="font-size:11px;color:var(--text-muted);margin-top:8px;">2014–2021 basis, real data.</p></div></div>' +
+      (matched && liveDetailsLoading[kn] ? '<div style="font-size:11px;color:var(--text-muted);margin:0 0 4px;padding:0 16px;">Refreshing contacts &amp; deals from Teamleader…</div>' : '') +
       dealHistoryHtml(kn) +
       '<div class="thin-note">This customer doesn\'t have the deeper, hand-verified work done yet (AI briefing, written action plan) — that\'s only built out for the two flagship examples (Happy Floor, Aerts) so far. Revenue, category mix, segment, territory, contact details, and deal history above are all real. The activity timeline below works the same for every customer, including this one.</div>' +
       '<div class="card card-pad"><h2 style="margin-bottom:10px;">Activity &amp; plan</h2>' + buildTimelineSection(kn) + '</div>';
 
     wireTimelineSection(kn);
+
+    // Contacts/deals above may still be the old frozen snapshot (or empty, if this customer was
+    // matched after that snapshot was taken) - fetch what Teamleader actually has right now and
+    // re-render once it's back. Guarded to fire once per customer per page load, not once per
+    // render - the fetch's own completion re-renders this same profile to show the fresh data,
+    // which would otherwise trigger another fetch, which would re-render again, forever.
+    if (matched && !liveDetailsFetched[kn]) fetchLiveTeamleaderDetails(kn);
+  }
+
+  var liveDetailsLoading = {};
+  var liveDetailsFetched = {};
+  function fetchLiveTeamleaderDetails(kn) {
+    if (liveDetailsLoading[kn] || liveDetailsFetched[kn]) return;
+    liveDetailsLoading[kn] = true;
+    fetch('/api/teamleader-customer-live?kn=' + kn).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
+      delete liveDetailsLoading[kn];
+      liveDetailsFetched[kn] = true;
+      if (res.ok && res.body.matched) {
+        if (typeof TEAMLEADER_CONTACTS === 'undefined') TEAMLEADER_CONTACTS = {};
+        if (typeof TEAMLEADER_DEALS === 'undefined') TEAMLEADER_DEALS = {};
+        TEAMLEADER_CONTACTS[String(kn)] = res.body.contacts;
+        TEAMLEADER_DEALS[String(kn)] = res.body.deals;
+      }
+      if (currentViewKn === kn) renderThinProfile(kn);
+    }).catch(function () {
+      delete liveDetailsLoading[kn];
+      liveDetailsFetched[kn] = true;
+      if (currentViewKn === kn) renderThinProfile(kn);
+    });
   }
 
   function renderDataOverview() {
