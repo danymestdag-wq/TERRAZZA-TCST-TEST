@@ -274,7 +274,7 @@
     <button class="nav-item" data-view="teamaccess" data-manager-only="1">Team &amp; Access</button>
     <button class="nav-item" data-view="exceptions" data-manager-only="1">Exceptions</button>
     <button class="nav-item" data-view="datarefresh" data-manager-only="1">Data &amp; Refresh</button>
-    <div class="sidebar-footer">Real Teamleader + turnover data. Built to test the concept before the real app is wired up.<br />v1.0 · &copy; Terrazza MC <span id="footer-copyright-year"></span></div>
+    <div class="sidebar-footer">Real Teamleader + turnover data.<br />v1.0 · &copy; Terrazza MC <span id="footer-copyright-year"></span></div>
     <script>document.getElementById('footer-copyright-year').textContent = new Date().getFullYear();</script>
   </nav>
 
@@ -513,7 +513,7 @@
 
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Company</th><th>Location</th><th>Added</th><th>Status</th></tr></thead>
+          <thead><tr><th>Klantnummer</th><th>Company</th><th>Location</th><th>Added</th><th>Status</th></tr></thead>
           <tbody id="newcust-body"></tbody>
         </table>
       </div>
@@ -1944,7 +1944,11 @@
         };
       })
       .filter(Boolean)
-      .sort(function (a, b) { return b.ageDays - a.ageDays; });
+      // Klantnummer ascending - lower numbers were assigned earlier, so this reads as oldest
+      // customer first, newest (highest kn) last. Simpler and more intuitive than sorting by how
+      // long each entry has sat in this queue, which put today's brand-new uploads in seemingly
+      // random spots relative to older ones still waiting on activation.
+      .sort(function (a, b) { return a.kn - b.kn; });
   }
 
   function saveActivatedCustomers() { saveDatasetToSupabase('activated_customers', activatedCustomers); }
@@ -2035,6 +2039,7 @@
       var ageCell = c.addedVersion + ' · ' + c.addedAt +
         (!isActivated && !c.closed && c.ageDays >= 7 ? ' <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-size:9px;">waiting ' + c.ageDays + 'd</span>' : '');
       tr.innerHTML =
+        '<td class="action-tag" data-profile-kn="' + c.kn + '" style="cursor:pointer;" title="View profile">' + c.kn + '</td>' +
         '<td class="cust-name" data-profile-kn="' + c.kn + '" style="cursor:pointer;" title="View profile">' + c.name + '</td>' +
         '<td class="action-tag">' + c.city + ', ' + c.country + '</td>' +
         '<td class="action-tag">' + ageCell + '</td>' +
@@ -3040,7 +3045,8 @@
         '<td class="num">' + l.count + '</td>' +
         '<td class="action-tag">' + l.date + '</td>' +
         '<td>' + statusCell + '</td>' +
-        '<td><button class="view-link" data-view-list-key="' + l.key + '" data-view-list-version="' + l.version + '">View</button></td></tr>';
+        '<td><button class="view-link" data-view-list-key="' + l.key + '" data-view-list-version="' + l.version + '">View</button> ' +
+        '<button class="view-link" data-delete-list-key="' + l.key + '" data-delete-list-version="' + l.version + '" style="color:var(--danger);">Delete</button></td></tr>';
     }).join('');
   }
 
@@ -3127,6 +3133,33 @@
   });
 
   document.getElementById('genlist-body').addEventListener('click', function (e) {
+    var delBtn = e.target.closest('[data-delete-list-key]');
+    if (delBtn) {
+      var delKey = delBtn.dataset.deleteListKey, delVersion = parseInt(delBtn.dataset.deleteListVersion);
+      var delEntry = genLists.filter(function (l) { return l.key === delKey && l.version === delVersion; })[0];
+      if (!delEntry) return;
+      if (delEntry.distributed) {
+        // A distributed list has real action points behind it - possibly already worked on by
+        // someone - so this needs an explicit confirmation naming what's actually being lost,
+        // unlike a draft where there's nothing yet to lose.
+        var relatedPts = actionPoints.filter(function (ap) { return ap.listKey === delKey && ap.listVersion === delVersion; });
+        var doneCount = relatedPts.filter(function (ap) { return ap.status === 'done'; }).length;
+        var msg = 'Delete "' + delEntry.name + ' v' + delEntry.version + '"? It was already distributed - this removes its ' +
+          relatedPts.length + ' action point' + (relatedPts.length === 1 ? '' : 's') +
+          (doneCount ? ' (' + doneCount + ' already marked done)' : '') + ' for everyone. This cannot be undone.';
+        if (!window.confirm(msg)) return;
+        actionPoints = actionPoints.filter(function (ap) { return !(ap.listKey === delKey && ap.listVersion === delVersion); });
+        saveActionPoints();
+      }
+      genLists = genLists.filter(function (l) { return !(l.key === delKey && l.version === delVersion); });
+      saveGenLists();
+      if (selectedListKey === delKey && selectedListVersion === delVersion) { selectedListKey = null; selectedListVersion = null; renderListDetail(); }
+      renderGenLists();
+      if (typeof renderMyQueue === 'function') renderMyQueue();
+      if (typeof renderTeamResults === 'function') renderTeamResults();
+      if (typeof renderTeamOverview === 'function') renderTeamOverview();
+      return;
+    }
     var btn = e.target.closest('[data-distribute-key]');
     if (!btn) return;
     var key = btn.dataset.distributeKey, version = parseInt(btn.dataset.distributeVersion);
