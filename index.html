@@ -1938,7 +1938,8 @@
         return {
           kn: entry.kn, name: r[1], city: r[2], country: DIRECTORY.countries[r[3]] || '',
           hasCompanyMatch: !!(TEAMLEADER_COMPANY_IDS && TEAMLEADER_COMPANY_IDS[entry.kn]),
-          addedVersion: entry.addedVersion, addedAt: entry.addedAt, ageDays: daysSince(entry.addedAt)
+          addedVersion: entry.addedVersion, addedAt: entry.addedAt, ageDays: daysSince(entry.addedAt),
+          closed: !!entry.closed, closedReason: entry.closedReason || ''
         };
       })
       .filter(Boolean)
@@ -1947,6 +1948,35 @@
 
   function saveActivatedCustomers() { saveDatasetToSupabase('activated_customers', activatedCustomers); }
   function saveNewCustomerQueue() { saveDatasetToSupabase('new_customer_queue', newCustomerQueue); }
+
+  // "Closed" is scoped to the New Customers queue only (a decision that this one is never going
+  // to be activated in Teamleader - e.g. a one-off sale) - deliberately NOT the same as the
+  // global Priority List "Exclude", which would also hide the customer from My Queue/Priority
+  // List and affect sales-priority visibility well beyond this page.
+  function closeNewCustomer(kn, reason) {
+    var entry = newCustomerQueue.find(function (e) { return e.kn === kn; });
+    if (!entry) return;
+    entry.closed = true;
+    entry.closedReason = (reason || '').trim() || '(no reason given)';
+    entry.closedAt = new Date().toISOString().slice(0, 10);
+    saveNewCustomerQueue();
+    renderNewCust();
+  }
+  function reopenNewCustomer(kn) {
+    var entry = newCustomerQueue.find(function (e) { return e.kn === kn; });
+    if (!entry) return;
+    delete entry.closed;
+    delete entry.closedReason;
+    delete entry.closedAt;
+    saveNewCustomerQueue();
+    renderNewCust();
+  }
+
+  var closeArmKn = null;
+  var searchArmKn = null;
+  var searchTermByKn = {};
+  var searchResultsByKn = {};
+  var searchLoadingKn = null;
 
   function renderNewCust() {
     var list = computeNewCustomers();
@@ -1957,51 +1987,147 @@
       var statusCell;
       if (isActivated) {
         statusCell = '<span class="pill" style="background:var(--success-wash);color:var(--success);">Activated</span>';
+      } else if (c.closed) {
+        statusCell = '<span class="pill" style="background:var(--surface-2);color:var(--text-muted);" title="' + c.closedReason.replace(/"/g, '&quot;') + '">Closed</span> ' +
+          '<button class="view-link" data-reopen-newcust="' + c.kn + '">Reopen</button>';
       } else if (armingName === c.kn) {
         statusCell = '<button class="excl-confirm-btn" data-kn="' + c.kn + '">Confirm — write Klantnummer &amp; open in Teamleader?</button> ' +
           '<button class="excl-cancel-btn" id="activate-cancel">Cancel</button>';
+      } else if (closeArmKn === c.kn) {
+        statusCell = '<div class="excl-confirm">' +
+          '<input type="text" class="excl-reason-input" placeholder="Reason (optional)" />' +
+          '<button class="excl-confirm-btn" data-confirm-close="' + c.kn + '">Confirm close</button>' +
+          '<button class="excl-cancel-btn" data-cancel-close>Cancel</button>' +
+          '</div>';
+      } else if (searchArmKn === c.kn) {
+        var term = searchTermByKn[c.kn] !== undefined ? searchTermByKn[c.kn] : c.name;
+        var resultsHtml = '';
+        if (searchLoadingKn === c.kn) {
+          resultsHtml = '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">Searching Teamleader…</div>';
+        } else if (searchResultsByKn[c.kn]) {
+          var results = searchResultsByKn[c.kn];
+          if (!results.length) {
+            resultsHtml = '<div style="font-size:11px;color:var(--text-muted);margin-top:6px;">No companies found for that search.</div>';
+          } else {
+            resultsHtml = '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px;">' + results.map(function (r) {
+              var warn = r.existingKlantnummer ? ' <span style="color:var(--warning);">(already has Klantnummer ' + r.existingKlantnummer + ' — check before linking)</span>' : '';
+              return '<div style="display:flex;align-items:center;gap:6px;font-size:12px;">' +
+                '<button class="view-link" data-link-company="' + r.id + '" data-link-kn="' + c.kn + '">Link</button>' +
+                '<span>' + r.name + (r.city ? ' — ' + r.city : '') + warn + '</span>' +
+                '</div>';
+            }).join('') + '</div>';
+          }
+        }
+        statusCell = '<div class="excl-confirm">' +
+          '<input type="text" class="excl-reason-input manual-search-input" style="width:160px;" value="' + term.replace(/"/g, '&quot;') + '" />' +
+          '<button class="excl-confirm-btn" data-do-search="' + c.kn + '">Search</button>' +
+          '<button class="excl-cancel-btn" data-cancel-search>Cancel</button>' +
+          '</div>' + resultsHtml;
       } else if (c.hasCompanyMatch) {
-        statusCell = '<button class="view-link" data-arm="' + c.kn + '">Activate</button>';
+        statusCell = '<button class="view-link" data-arm="' + c.kn + '">Activate</button> ' +
+          '<button class="view-link" data-close-arm="' + c.kn + '" style="color:var(--text-muted);">Close</button>';
       } else {
-        statusCell = '<span class="pill" style="background:var(--surface-2);color:var(--text-muted);">Not yet found in Teamleader</span>';
+        statusCell = '<span class="pill" style="background:var(--surface-2);color:var(--text-muted);">Not yet found in Teamleader</span> ' +
+          '<button class="view-link" data-search-arm="' + c.kn + '">Search manually</button> ' +
+          '<button class="view-link" data-close-arm="' + c.kn + '" style="color:var(--text-muted);">Close</button>';
       }
       var ageCell = c.addedVersion + ' · ' + c.addedAt +
-        (!isActivated && c.ageDays >= 7 ? ' <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-size:9px;">waiting ' + c.ageDays + 'd</span>' : '');
+        (!isActivated && !c.closed && c.ageDays >= 7 ? ' <span class="pill" style="background:var(--warning-wash);color:var(--warning);font-size:9px;">waiting ' + c.ageDays + 'd</span>' : '');
       tr.innerHTML =
-        '<td class="cust-name" data-toggle-newcust="' + c.kn + '" style="cursor:pointer;" title="Click for details">' + c.name + '</td>' +
+        '<td class="cust-name" data-profile-kn="' + c.kn + '" style="cursor:pointer;" title="View profile">' + c.name + '</td>' +
         '<td class="action-tag">' + c.city + ', ' + c.country + '</td>' +
         '<td class="action-tag">' + ageCell + '</td>' +
         '<td>' + statusCell + '</td>';
       newcustBody.appendChild(tr);
-      if (expandedNewCust === c.kn) {
-        var detailTr = document.createElement('tr');
-        detailTr.innerHTML = '<td colspan="4" style="background:var(--surface-2);font-size:12px;color:var(--text-secondary);padding:10px 14px;">' +
-          (c.hasCompanyMatch
-            ? 'Found in Teamleader — click Activate to write this Klantnummer into Teamleader and open the company there. Sending the welcome email is still a manual step, done by hand from Teamleader once you\'re on that page.'
-            : c.name + ' is in the Excel turnover file but not yet found in Teamleader. Click "Sync with Teamleader" on the Data &amp; Refresh page to search for it again.') +
-          '</td>';
-        newcustBody.appendChild(detailTr);
-      }
     });
     document.getElementById('stat-newcust-total').textContent = list.length;
     document.getElementById('stat-newcust-activated').textContent = activatedCustomers.length;
     document.getElementById('stat-newcust-pending').textContent = list.filter(function (c) { return activatedCustomers.indexOf(c.kn) === -1; }).length;
   }
 
-  var expandedNewCust = null;
+  function runManualSearch(kn, term) {
+    searchTermByKn[kn] = term;
+    searchLoadingKn = kn;
+    searchResultsByKn[kn] = null;
+    renderNewCust();
+    fetch('/api/teamleader-search-companies?term=' + encodeURIComponent(term)).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
+      searchLoadingKn = null;
+      searchResultsByKn[kn] = res.ok ? res.body.results : [];
+      if (!res.ok) alert('Search failed: ' + (res.body.error || 'unknown error'));
+      renderNewCust();
+    }).catch(function (err) {
+      searchLoadingKn = null;
+      searchResultsByKn[kn] = [];
+      alert('Search failed: ' + err.message);
+      renderNewCust();
+    });
+  }
 
   newcustBody.addEventListener('click', function (e) {
-    var toggleCell = e.target.closest('[data-toggle-newcust]');
-    if (toggleCell) {
-      var kn = parseInt(toggleCell.dataset.toggleNewcust);
-      expandedNewCust = expandedNewCust === kn ? null : kn;
-      renderNewCust();
-      return;
-    }
+    var profileCell = e.target.closest('[data-profile-kn]');
+    if (profileCell) { goToCustomerProfile(parseInt(profileCell.dataset.profileKn)); return; }
+
     var armBtn = e.target.closest('[data-arm]');
     if (armBtn) { armingName = parseInt(armBtn.dataset.arm); renderNewCust(); return; }
     var cancelBtn = e.target.closest('#activate-cancel');
     if (cancelBtn) { armingName = null; renderNewCust(); return; }
+
+    var closeArmBtn = e.target.closest('[data-close-arm]');
+    if (closeArmBtn) { closeArmKn = parseInt(closeArmBtn.dataset.closeArm); renderNewCust(); return; }
+    var cancelCloseBtn = e.target.closest('[data-cancel-close]');
+    if (cancelCloseBtn) { closeArmKn = null; renderNewCust(); return; }
+    var confirmCloseBtn = e.target.closest('[data-confirm-close]');
+    if (confirmCloseBtn) {
+      var closeKn = parseInt(confirmCloseBtn.dataset.confirmClose);
+      var reasonInput = confirmCloseBtn.closest('tr').querySelector('.excl-reason-input');
+      closeArmKn = null;
+      closeNewCustomer(closeKn, reasonInput ? reasonInput.value : '');
+      return;
+    }
+    var reopenBtn = e.target.closest('[data-reopen-newcust]');
+    if (reopenBtn) { reopenNewCustomer(parseInt(reopenBtn.dataset.reopenNewcust)); return; }
+
+    var searchArmBtn = e.target.closest('[data-search-arm]');
+    if (searchArmBtn) {
+      searchArmKn = parseInt(searchArmBtn.dataset.searchArm);
+      searchResultsByKn[searchArmKn] = null;
+      renderNewCust();
+      return;
+    }
+    var cancelSearchBtn = e.target.closest('[data-cancel-search]');
+    if (cancelSearchBtn) { searchArmKn = null; renderNewCust(); return; }
+    var doSearchBtn = e.target.closest('[data-do-search]');
+    if (doSearchBtn) {
+      var searchKn = parseInt(doSearchBtn.dataset.doSearch);
+      var input = doSearchBtn.closest('tr').querySelector('.manual-search-input');
+      var term = input ? input.value.trim() : '';
+      if (term) runManualSearch(searchKn, term);
+      return;
+    }
+    var linkBtn = e.target.closest('[data-link-company]');
+    if (linkBtn) {
+      var linkKn = parseInt(linkBtn.dataset.linkKn);
+      var companyId = linkBtn.dataset.linkCompany;
+      linkBtn.disabled = true;
+      linkBtn.textContent = 'Linking...';
+      fetch('/api/teamleader-link-company?kn=' + linkKn + '&companyId=' + encodeURIComponent(companyId)).then(function (r) { return r.json().then(function (body) { return { ok: r.ok, body: body }; }); }).then(function (res) {
+        if (!res.ok) {
+          alert('Could not link: ' + (res.body.error || 'unknown error'));
+          return;
+        }
+        if (res.body.directory) { DIRECTORY = res.body.directory; DIRECTORY_BY_KN = null; }
+        if (res.body.companyIds) { TEAMLEADER_COMPANY_IDS = res.body.companyIds; }
+        searchArmKn = null;
+        delete searchResultsByKn[linkKn];
+        delete searchTermByKn[linkKn];
+        renderNewCust();
+        renderDataOverview();
+      }).catch(function (err) {
+        alert('Could not link: ' + err.message);
+      });
+      return;
+    }
+
     var confirmBtn = e.target.closest('.excl-confirm-btn[data-kn]');
     if (confirmBtn) {
       var confirmKn = parseInt(confirmBtn.dataset.kn);
