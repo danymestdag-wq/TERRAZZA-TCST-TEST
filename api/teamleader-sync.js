@@ -133,7 +133,8 @@ module.exports = async function handler(req, res) {
       matchedCount: matchedCount,
       stillUnmatchedCount: stillUnmatchedCount,
       details: details,
-      directory: matchedCount > 0 ? directory : null
+      directory: matchedCount > 0 ? directory : null,
+      companyIds: matchedCount > 0 ? companyIds : null
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
