@@ -1,7 +1,7 @@
-// TEMPORARY diagnostic - looks up action_points rows matching a specific orphaned list (one that
-// was deleted locally before the Supabase-delete fix existed, so its rows were never actually
-// removed from the shared database). Read-only dry run first - reports what would be deleted
-// without touching anything. Delete after use.
+// TEMPORARY cleanup - deletes the specific orphaned action_points rows confirmed by the prior
+// dry run (144 rows, list "Priority list — All territories + België, bought TMC" v2, all owned
+// by Nasier) - left behind because the list was deleted locally before the Supabase-delete fix
+// existed. Delete after use.
 const SUPABASE_URL = 'https://mrktemhnhwqszamaphlp.supabase.co';
 function supaHeaders() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -13,9 +13,9 @@ module.exports = async function handler(req, res) {
     const label = 'Priority list — All territories + België, bought TMC';
     const version = 2;
     const url = SUPABASE_URL + '/rest/v1/action_points?list_label=eq.' + encodeURIComponent(label) + '&list_version=eq.' + version;
-    const r = await fetch(url, { headers: supaHeaders() });
-    const rows = await r.json();
-    res.status(200).json({ ok: r.ok, status: r.status, matchCount: Array.isArray(rows) ? rows.length : null, sample: Array.isArray(rows) ? rows.slice(0, 5) : rows });
+    const r = await fetch(url, { method: 'DELETE', headers: { ...supaHeaders(), Prefer: 'return=representation' } });
+    const deleted = await r.json();
+    res.status(200).json({ ok: r.ok, status: r.status, deletedCount: Array.isArray(deleted) ? deleted.length : null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
