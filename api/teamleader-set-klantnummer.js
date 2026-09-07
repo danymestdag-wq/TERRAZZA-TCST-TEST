@@ -25,13 +25,18 @@ module.exports = async function handler(req, res) {
     // since this is a one-time backlog, not something that needs "newest first" like sync does.
     const toCheck = todo.slice(0, BATCH_LIMIT);
 
-    let writtenCount = 0, alreadySetCount = 0, mismatchCount = 0;
+    let writtenCount = 0, alreadySetCount = 0, mismatchCount = 0, errorCount = 0;
     const details = [];
 
     for (const kn of toCheck) {
       const companyId = companyIds[kn];
       const infoRes = await tlPost(accessToken, 'companies.info', { id: companyId });
       if (!infoRes.ok) {
+        // A stale company id (e.g. the company was deleted/merged in Teamleader since this link
+        // was recorded) won't fix itself by retrying - mark done so it doesn't loop forever, but
+        // keep the real error visible for someone to look at.
+        errorCount++;
+        progress[kn] = { status: 'error', detail: infoRes.data, at: new Date().toISOString() };
         details.push({ kn: kn, status: 'error', detail: infoRes.data });
         continue;
       }
@@ -59,6 +64,8 @@ module.exports = async function handler(req, res) {
           progress[kn] = { status: 'written', at: new Date().toISOString() };
           details.push({ kn: kn, status: 'written' });
         } else {
+          errorCount++;
+          progress[kn] = { status: 'error', detail: updateRes.data, at: new Date().toISOString() };
           details.push({ kn: kn, status: 'error', detail: updateRes.data });
         }
       }
@@ -73,6 +80,7 @@ module.exports = async function handler(req, res) {
       writtenCount: writtenCount,
       alreadySetCount: alreadySetCount,
       mismatchCount: mismatchCount,
+      errorCount: errorCount,
       remaining: remaining,
       totalCompanies: allKns.length,
       details: details
